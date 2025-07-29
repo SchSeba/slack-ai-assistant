@@ -23,13 +23,6 @@ type WorkspaceThreadResponse struct {
 	UpdatedAt   string `json:"updatedAt"`
 }
 
-// ChatMessage represents a chat message in a thread
-type ChatBody struct {
-	Message string `json:"message"`
-	UserId  int64  `json:"userId"`
-	Mode    string `json:"mode"`
-}
-
 type ChatResponse struct {
 	ID           string `json:"id"`
 	TextResponse string `json:"textResponse"`

@@ -1,2 +1,3 @@
 .vscode
 cmd/server/slack-ai-assistant.db
+__debug*
