@@ -13,7 +13,7 @@ CONTAINER_REPO := $(CONTAINER_REGISTRY)/schseba/$(APP_NAME)
 CONTAINER_RUNTIME ?= docker
 
 # Tool versions
-GOLANGCI_LINT_VERSION ?= v1.61.0
+GOLANGCI_LINT_VERSION ?= v2.3.0
 
 # Get version from git
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -84,9 +84,10 @@ test-coverage: ## Run tests with coverage report
 .PHONY: mock-generate
 mock-generate: ## Generate mock files using mockgen
 	@echo "Generating mock files..."
-	@mkdir -p pkg/mocks/database pkg/mocks/slack-bot
-	go run go.uber.org/mock/mockgen -source=pkg/database/database.go -destination=pkg/mocks/database/mock_database.go -package=database
-	go run go.uber.org/mock/mockgen -source=pkg/slack-bot/slack-bot.go -destination=pkg/mocks/slack-bot/mock_slack_bot.go -package=slackbot
+	@mkdir -p pkg/mocks/database pkg/mocks/slack-bot pkg/mocks/llm
+	go run go.uber.org/mock/mockgen@v0.5.2 -source=pkg/database/database.go -destination=pkg/mocks/database/mock_database.go -package=database
+	go run go.uber.org/mock/mockgen@v0.5.2 -source=pkg/slack-bot/slack-bot.go -destination=pkg/mocks/slack-bot/mock_slack_bot.go -package=slackbot
+	go run go.uber.org/mock/mockgen@v0.5.2 -source=pkg/llm/types.go -destination=pkg/mocks/llm/mock_llm.go -package=llm
 	@echo "Mock files generated successfully!"
 
 .PHONY: build

@@ -1,21 +1,22 @@
+// Package database provides SQLite-based persistence using GORM for mapping Slack threads to AnythingLLM thread slugs.
 package database
 
 import (
-	"gorm.io/gorm"
 	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
-// SlackThread represents a table with slackThread and threadSlug as composite primary key
+// SlackThreadToSlug represents a table with slackThread and threadSlug as composite primary key
 type SlackThreadToSlug struct {
 	SlackThread string `gorm:"primaryKey"`
 	ThreadSlug  string
 }
 
-// Database interface abstracts database operations
+// Interface to abstracts database operations
 type Interface interface {
 	AutoMigrate() error
 	CreateSlackThreadWithSlug(thread string, slug string) error
-	GetSlugForThread(slackThread string) (string,bool, error)
+	GetSlugForThread(slackThread string) (string, bool, error)
 	Close() error
 }
 
@@ -39,19 +40,21 @@ func (g *Database) AutoMigrate() error {
 }
 
 // CreateSlackThreadWithSlug inserts a new SlackThread record
-func (g *Database) CreateSlackThreadWithSlug(thread string, slug string) error {
+func (g *Database) CreateSlackThreadWithSlug(thread, slug string) error {
 	return g.db.Create(&SlackThreadToSlug{SlackThread: thread, ThreadSlug: slug}).Error
 }
 
-// GetSlackThread retrieves a SlackThread by composite key
-func (g *Database) GetSlugForThread(slackThread string) (string,bool, error) {
+// GetSlugForThread retrieves a SlackThread by composite key
+//
+//nolint:gocritic
+func (g *Database) GetSlugForThread(slackThread string) (string, bool, error) {
 	var thread SlackThreadToSlug
 	result := g.db.First(&thread, "slack_thread = ?", slackThread)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
 			return "", false, nil
 		}
-		return "",false, result.Error
+		return "", false, result.Error
 	}
 	return thread.ThreadSlug, true, nil
 }

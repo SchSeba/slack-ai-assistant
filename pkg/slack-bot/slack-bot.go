@@ -1,3 +1,4 @@
+// Package slackbot provides Slack API integration using Socket Mode for real-time WebSocket communication.
 package slackbot
 
 import (
@@ -19,10 +20,9 @@ type Interface interface {
 	// PostMessage posts a message to a channel
 	PostMessage(channel, threadTS, message string) error
 
-	// GetAPI returns the Slack API client
-	GetAPI() *slack.Client
-	// GetSocketMode returns the Socket Mode client
-	GetSocketMode() *socketmode.Client
+	// GetConversationReplies gets replies in a conversation thread
+	GetConversationReplies(params *slack.GetConversationRepliesParameters) ([]slack.Message, error)
+
 	// GetBotUser returns the bot user information
 	GetBotUser() *slack.AuthTestResponse
 }
@@ -31,13 +31,13 @@ type SlackBot struct {
 	api                 *slack.Client
 	socketMode          *socketmode.Client
 	botUser             *slack.AuthTestResponse
-	appMentionChannel   chan (*slackevents.AppMentionEvent)
-	slashCommandChannel chan (*slack.SlashCommand)
+	appMentionChannel   chan *slackevents.AppMentionEvent
+	slashCommandChannel chan *slack.SlashCommand
 }
 
 func NewSlackBot(slackBotToken, slackAppToken string,
-	appMentionChannel chan (*slackevents.AppMentionEvent),
-	slashCommandChannel chan (*slack.SlashCommand),
+	appMentionChannel chan *slackevents.AppMentionEvent,
+	slashCommandChannel chan *slack.SlashCommand,
 	debug bool) (*SlackBot, error) {
 	// Create a new Slack API client
 	api := slack.New(
@@ -65,6 +65,9 @@ func NewSlackBot(slackBotToken, slackAppToken string,
 	return &SlackBot{api: api, socketMode: socketMode, botUser: botUser, appMentionChannel: appMentionChannel, slashCommandChannel: slashCommandChannel}, nil
 }
 
+// Start begins the bot's event processing loop
+//
+//nolint:gocognit // this is a long function, but it is a good place to put the event handling logic
 func (b *SlackBot) Start(ctx context.Context) {
 	// Handle different types of events
 	go func() {
@@ -115,7 +118,9 @@ func (b *SlackBot) Start(ctx context.Context) {
 	}()
 
 	fmt.Println("🤖 Slack AI Assistant Bot is running...")
-	b.socketMode.RunContext(ctx)
+	if err := b.socketMode.RunContext(ctx); err != nil {
+		fmt.Printf("Error running socket mode: %v\n", err)
+	}
 }
 
 func (b *SlackBot) PostMessage(channel, threadTS, message string) error {
@@ -133,33 +138,13 @@ func (b *SlackBot) PostMessage(channel, threadTS, message string) error {
 	return nil
 }
 
-// // getBotUsername returns the bot's username if available
-// func (b *SlackBot) getBotUsername() string {
-// 	if b.botUser != nil {
-// 		return b.botUser.User
-// 	}
-// 	return "Unknown Bot"
-// }
-
-// // getBotUserID returns the bot's user ID if available
-// func (b *SlackBot) getBotUserID() string {
-// 	if b.botUser != nil {
-// 		return b.botUser.UserID
-// 	}
-// 	return ""
-// }
-
-// GetAPI returns the Slack API client
-func (b *SlackBot) GetAPI() *slack.Client {
-	return b.api
-}
-
-// GetSocketMode returns the Socket Mode client
-func (b *SlackBot) GetSocketMode() *socketmode.Client {
-	return b.socketMode
-}
-
 // GetBotUser returns the bot user information
 func (b *SlackBot) GetBotUser() *slack.AuthTestResponse {
 	return b.botUser
+}
+
+// GetConversationReplies gets replies in a conversation thread
+func (b *SlackBot) GetConversationReplies(params *slack.GetConversationRepliesParameters) ([]slack.Message, error) {
+	replies, _, _, err := b.api.GetConversationReplies(params)
+	return replies, err
 }

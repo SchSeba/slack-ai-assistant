@@ -1,3 +1,4 @@
+// Package llm provides integration with AnythingLLM for AI chat functionality and workspace management.
 package llm
 
 import (
@@ -39,7 +40,7 @@ func (c *LLMClient) CreateThread(project, version string) (string, error) {
 	workspaceInfoRequest := c.apiClient.WorkspacesAPI.V1WorkspaceSlugGet(context.Background(), slug)
 	workspaceInfo, response, err := workspaceInfoRequest.Execute()
 	if err != nil {
-		fmt.Printf("❌ Failed to get workspace info: %v\n", err)
+		fmt.Printf("❌ Failed to get workspace info: %v\n, %s", err, response.Status)
 		return "", err
 	}
 	fmt.Printf("Workspace info: %+v\n", workspaceInfo)
@@ -82,6 +83,7 @@ func (c *LLMClient) Inject(project, version, message string) error {
 		"textContent":     message,
 		"addToWorkspaces": wokerspace,
 		"metadata": map[string]interface{}{
+			//nolint:gosec // use of weak random number generator is acceptable for document title
 			"title": fmt.Sprintf("Document-%d", rand.Intn(1000000)),
 		},
 	})

@@ -1,3 +1,4 @@
+// Package agent provides the central orchestrator for handling Slack bot commands and business logic.
 package agent
 
 import (
@@ -15,18 +16,18 @@ import (
 
 type Agent struct {
 	db                  database.Interface
-	appMentionChannel   chan (*slackevents.AppMentionEvent)
-	slashCommandChannel chan (*slack.SlashCommand)
+	appMentionChannel   chan *slackevents.AppMentionEvent
+	slashCommandChannel chan *slack.SlashCommand
 	slackBot            slackbot.Interface
 	llmClient           llm.Interface
 	workerPool          *WorkerPool
 }
 
-func NewAgent(db database.Interface, slackBot slackbot.Interface, llmClient llm.Interface, appMentionChannel chan (*slackevents.AppMentionEvent), slashCommandChannel chan (*slack.SlashCommand), workerCount int) *Agent {
+func NewAgent(db database.Interface, slackBot slackbot.Interface, llmClient llm.Interface, appMentionChannel chan *slackevents.AppMentionEvent, slashCommandChannel chan *slack.SlashCommand, workerCount int) *Agent {
 	// Create worker pool with configurable size
 	// Queue size is set to 200 to handle bursts of events
 	workerPool := NewWorkerPool(workerCount, 200)
-	
+
 	return &Agent{
 		db:                  db,
 		slackBot:            slackBot,
@@ -40,7 +41,7 @@ func NewAgent(db database.Interface, slackBot slackbot.Interface, llmClient llm.
 func (a *Agent) Start(ctx context.Context) {
 	// Start the worker pool
 	a.workerPool.Start(a)
-	
+
 	// Start the dispatcher goroutine that reads from channels and submits work
 	go func() {
 		defer a.workerPool.Stop()
@@ -93,37 +94,36 @@ func (a *Agent) handleAppMentionEvent(event *slackevents.AppMentionEvent) error 
 		fmt.Printf("🔍 Parameters: %v\n", parameters)
 		command = parameters[1]
 	}
-    
+
 	switch command {
 	case "answer":
 		if len(parameters) > 2 && len(parameters) < 4 {
-			return a.slackBot.PostMessage(event.Channel,threadTS, "To answer the question please provide the project name (example: sriov,metallb) and the openshift version (4.16,4.18, etc..)")
+			return a.slackBot.PostMessage(event.Channel, threadTS, "To answer the question please provide the project name (example: sriov,metallb) and the openshift version (4.16,4.18, etc..)")
 		}
-		return a.AnswerQuestion(event.Channel,threadTS,parameters[2], parameters[3],false)
+		return a.AnswerQuestion(event.Channel, threadTS, parameters[2], parameters[3], false)
 	case "answer-all":
 		if len(parameters) > 2 && len(parameters) < 4 {
-			return a.slackBot.PostMessage(event.Channel,threadTS, "To answer the question please provide the project name (example: sriov,metallb) and the openshift version (4.16,4.18, etc..)")
+			return a.slackBot.PostMessage(event.Channel, threadTS, "To answer the question please provide the project name (example: sriov,metallb) and the openshift version (4.16,4.18, etc..)")
 		}
-		return a.AnswerQuestion(event.Channel,threadTS, parameters[2], parameters[3],true)
+		return a.AnswerQuestion(event.Channel, threadTS, parameters[2], parameters[3], true)
 	case "inject":
 		if len(parameters) > 2 && len(parameters) < 4 {
-			return a.slackBot.PostMessage(event.Channel,threadTS, "To inject the last message in the thread please provide the project name (example: sriov,metallb) and the openshift version (4.16,4.18, etc..)")
+			return a.slackBot.PostMessage(event.Channel, threadTS, "To inject the last message in the thread please provide the project name (example: sriov,metallb) and the openshift version (4.16,4.18, etc..)")
 		}
-		return a.Inject(event.Channel,threadTS,parameters[2], parameters[3])
+		return a.Inject(event.Channel, threadTS, parameters[2], parameters[3])
 	case "elaborate":
-		return a.Elaborate(event.Channel,threadTS)
+		return a.Elaborate(event.Channel, threadTS)
 	}
 
-
-	return a.slackBot.PostMessage(event.Channel,threadTS, "Please use one of the following commands (answer,elaborate,inject)")
+	return a.slackBot.PostMessage(event.Channel, threadTS, "Please use one of the following commands (answer,elaborate,inject)")
 }
 
 func (a *Agent) AnswerQuestion(channel, threadTS, project, version string, fullThread bool) error {
-	err := a.slackBot.PostMessage(channel,threadTS, "Searching for answer...")
+	err := a.slackBot.PostMessage(channel, threadTS, "Searching for answer...")
 	if err != nil {
 		return fmt.Errorf("failed to post initial message: %w", err)
 	}
-	var messages = ""
+	var messages string
 	if fullThread {
 		// Get all thread messages
 		messages, err = a.getThreadMessages(channel, threadTS)
@@ -140,7 +140,7 @@ func (a *Agent) AnswerQuestion(channel, threadTS, project, version string, fullT
 	}
 
 	// Check if a slug in anythingllm already exist
-	slug,exist, err := a.db.GetSlugForThread(threadTS)
+	slug, exist, err := a.db.GetSlugForThread(threadTS)
 	if err != nil {
 		fmt.Printf("❌ Failed to get slug for thread from database: %v\n", err)
 		return fmt.Errorf("failed to get slug for thread from database: %w", err)
@@ -159,13 +159,13 @@ func (a *Agent) AnswerQuestion(channel, threadTS, project, version string, fullT
 		}
 	}
 
-	response, err := a.llmClient.SendMessageToChat(project, version,slug, messages)
+	response, err := a.llmClient.SendMessageToChat(project, version, slug, messages)
 	if err != nil {
 		fmt.Printf("❌ Failed to generate response: %v\n", err)
 		return fmt.Errorf("failed to generate response: %w", err)
 	}
 
-	err = a.slackBot.PostMessage(channel,threadTS, fmt.Sprintf("Here is the information I was able to find\n%s", response))
+	err = a.slackBot.PostMessage(channel, threadTS, fmt.Sprintf("Here is the information I was able to find\n%s", response))
 	if err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
@@ -173,7 +173,7 @@ func (a *Agent) AnswerQuestion(channel, threadTS, project, version string, fullT
 }
 
 func (a *Agent) Elaborate(channel, threadTS string) error {
-	err := a.slackBot.PostMessage(channel,threadTS, "Elaborating...")
+	err := a.slackBot.PostMessage(channel, threadTS, "Elaborating...")
 	if err != nil {
 		return fmt.Errorf("failed to post initial message: %w", err)
 	}
@@ -183,7 +183,7 @@ func (a *Agent) Elaborate(channel, threadTS string) error {
 		fmt.Printf("❌ Failed to get last message in thread: %v\n", err)
 		return fmt.Errorf("failed to get last message in thread: %w", err)
 	}
-	slug, err := a.llmClient.CreateThread("elaborate","")
+	slug, err := a.llmClient.CreateThread("elaborate", "")
 	if err != nil {
 		fmt.Printf("❌ Failed to create thread: %v\n", err)
 		return fmt.Errorf("failed to create thread: %w", err)
@@ -194,28 +194,28 @@ func (a *Agent) Elaborate(channel, threadTS string) error {
 		fmt.Printf("❌ Failed to generate response: %v\n", err)
 		return fmt.Errorf("failed to generate response: %w", err)
 	}
-	err = a.slackBot.PostMessage(channel,threadTS, fmt.Sprintf("%s", response))
+	err = a.slackBot.PostMessage(channel, threadTS, response)
 	if err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
-	
+
 	return nil
 }
 
 func (a *Agent) Inject(channel, threadTS, project, version string) error {
 	messages, err := a.getLastMessagesFromTheSameUser(channel, threadTS)
-		if err != nil {
-			fmt.Printf("❌ Failed to get thread messages: %v\n", err)
-			return fmt.Errorf("failed to get thread messages: %w", err)
-		}
-	
+	if err != nil {
+		fmt.Printf("❌ Failed to get thread messages: %v\n", err)
+		return fmt.Errorf("failed to get thread messages: %w", err)
+	}
+
 	err = a.llmClient.Inject(project, version, messages)
 	if err != nil {
 		fmt.Printf("❌ Failed to inject messages: %v\n", err)
 		return fmt.Errorf("failed to inject messages: %w", err)
 	}
 
-	err = a.slackBot.PostMessage(channel,threadTS, fmt.Sprintf("Document injected for project %s on version %s", project, version))
+	err = a.slackBot.PostMessage(channel, threadTS, fmt.Sprintf("Document injected for project %s on version %s", project, version))
 	if err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
@@ -227,9 +227,8 @@ func (a *Agent) getThreadMessages(channel, threadTS string) (string, error) {
 	fmt.Printf("🧵 Retrieving thread messages for thread: %s\n", threadTS)
 
 	// Get conversation replies (thread messages)
-	replies, _, _, err := a.slackBot.GetAPI().GetConversationReplies(&slack.GetConversationRepliesParameters{
+	replies, err := a.slackBot.GetConversationReplies(&slack.GetConversationRepliesParameters{
 		ChannelID: channel,
-
 		Timestamp: threadTS,
 		Inclusive: true, // Include the parent message
 	})
@@ -241,6 +240,7 @@ func (a *Agent) getThreadMessages(channel, threadTS string) (string, error) {
 
 	fmt.Printf("📋 Thread contains %d message(s):\n", len(replies))
 	messages := ""
+	//nolint:gocritic
 	for _, msg := range replies {
 		messages += fmt.Sprintf("%s\n", msg.Text)
 	}
@@ -250,9 +250,8 @@ func (a *Agent) getThreadMessages(channel, threadTS string) (string, error) {
 
 func (a *Agent) getLastMessageInThread(channel, threadTS string) (string, error) {
 	// Get conversation replies (thread messages)
-	replies, _, _, err := a.slackBot.GetAPI().GetConversationReplies(&slack.GetConversationRepliesParameters{
+	replies, err := a.slackBot.GetConversationReplies(&slack.GetConversationRepliesParameters{
 		ChannelID: channel,
-
 		Timestamp: threadTS,
 		Inclusive: true, // Include the parent message
 	})
@@ -268,7 +267,7 @@ func (a *Agent) getLastMessageInThread(channel, threadTS string) (string, error)
 }
 
 func (a *Agent) getLastMessagesFromTheSameUser(channel, threadTS string) (string, error) {
-	replies, _, _, err := a.slackBot.GetAPI().GetConversationReplies(&slack.GetConversationRepliesParameters{
+	replies, err := a.slackBot.GetConversationReplies(&slack.GetConversationRepliesParameters{
 		ChannelID: channel,
 		Timestamp: threadTS,
 		Inclusive: true, // Include the parent message
@@ -281,13 +280,13 @@ func (a *Agent) getLastMessagesFromTheSameUser(channel, threadTS string) (string
 
 	lastMessageUser := replies[len(replies)-2].User
 	messages := ""
-	for index := len(replies)-2; index > 0; index-- {
+	for index := len(replies) - 2; index > 0; index-- {
 		if replies[index].User != lastMessageUser {
 			break
 		}
 
-		messages = fmt.Sprintf("%s%s",replies[index].Text,messages)
+		messages = fmt.Sprintf("%s%s", replies[index].Text, messages)
 	}
-	messages = strings.TrimPrefix(messages,"Elaborating...")
+	messages = strings.TrimPrefix(messages, "Elaborating...")
 	return messages, nil
 }

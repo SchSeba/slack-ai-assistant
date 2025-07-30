@@ -14,7 +14,6 @@ import (
 	reflect "reflect"
 
 	slack "github.com/slack-go/slack"
-	socketmode "github.com/slack-go/slack/socketmode"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -42,20 +41,6 @@ func (m *MockInterface) EXPECT() *MockInterfaceMockRecorder {
 	return m.recorder
 }
 
-// GetAPI mocks base method.
-func (m *MockInterface) GetAPI() *slack.Client {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAPI")
-	ret0, _ := ret[0].(*slack.Client)
-	return ret0
-}
-
-// GetAPI indicates an expected call of GetAPI.
-func (mr *MockInterfaceMockRecorder) GetAPI() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPI", reflect.TypeOf((*MockInterface)(nil).GetAPI))
-}
-
 // GetBotUser mocks base method.
 func (m *MockInterface) GetBotUser() *slack.AuthTestResponse {
 	m.ctrl.T.Helper()
@@ -70,18 +55,19 @@ func (mr *MockInterfaceMockRecorder) GetBotUser() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBotUser", reflect.TypeOf((*MockInterface)(nil).GetBotUser))
 }
 
-// GetSocketMode mocks base method.
-func (m *MockInterface) GetSocketMode() *socketmode.Client {
+// GetConversationReplies mocks base method.
+func (m *MockInterface) GetConversationReplies(params *slack.GetConversationRepliesParameters) ([]slack.Message, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSocketMode")
-	ret0, _ := ret[0].(*socketmode.Client)
-	return ret0
+	ret := m.ctrl.Call(m, "GetConversationReplies", params)
+	ret0, _ := ret[0].([]slack.Message)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// GetSocketMode indicates an expected call of GetSocketMode.
-func (mr *MockInterfaceMockRecorder) GetSocketMode() *gomock.Call {
+// GetConversationReplies indicates an expected call of GetConversationReplies.
+func (mr *MockInterfaceMockRecorder) GetConversationReplies(params any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSocketMode", reflect.TypeOf((*MockInterface)(nil).GetSocketMode))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConversationReplies", reflect.TypeOf((*MockInterface)(nil).GetConversationReplies), params)
 }
 
 // PostMessage mocks base method.
