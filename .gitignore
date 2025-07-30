@@ -1,3 +1,13 @@
-.vscode
-cmd/server/slack-ai-assistant.db
-__debug*
+# Runtime files
+*.db
+*.sqlite
+*.log
+
+# Build artifacts  
+bin/
+slack-ai-assistant
+
+# IDE files
+.vscode/
+.idea/
+.claude/
