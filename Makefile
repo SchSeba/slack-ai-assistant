@@ -81,6 +81,14 @@ test-coverage: ## Run tests with coverage report
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
+.PHONY: mock-generate
+mock-generate: ## Generate mock files using mockgen
+	@echo "Generating mock files..."
+	@mkdir -p pkg/mocks/database pkg/mocks/slack-bot
+	go run go.uber.org/mock/mockgen -source=pkg/database/database.go -destination=pkg/mocks/database/mock_database.go -package=database
+	go run go.uber.org/mock/mockgen -source=pkg/slack-bot/slack-bot.go -destination=pkg/mocks/slack-bot/mock_slack_bot.go -package=slackbot
+	@echo "Mock files generated successfully!"
+
 .PHONY: build
 build: deps fmt vet ## Build the application
 	@echo "Building $(BINARY_NAME) version $(VERSION)..."
