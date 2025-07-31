@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	
+
 	"github.com/slack-go/slack/slackevents"
 )
 
@@ -27,7 +27,6 @@ func (w AppMentionWorkItem) String() string {
 	return fmt.Sprintf("AppMention{User: %s, Channel: %s}", w.Event.User, w.Event.Channel)
 }
 
-
 // WorkerPool manages a pool of workers that process work items
 type WorkerPool struct {
 	workerCount int
@@ -47,7 +46,7 @@ type Worker struct {
 }
 
 // NewWorkerPool creates a new worker pool with the specified number of workers
-func NewWorkerPool(workerCount int, queueSize int) *WorkerPool {
+func NewWorkerPool(workerCount, queueSize int) *WorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &WorkerPool{
 		workerCount: workerCount,
@@ -111,7 +110,7 @@ func (w *Worker) start(wg *sync.WaitGroup) {
 			}
 			w.processWorkItem(workItem)
 		case <-w.ctx.Done():
-			fmt.Printf("👷 Worker %d shutting down (context cancelled)\n", w.id)
+			fmt.Printf("👷 Worker %d shutting down (context canceled)\n", w.id)
 			return
 		}
 	}

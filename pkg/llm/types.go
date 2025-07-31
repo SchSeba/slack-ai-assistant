@@ -1,3 +1,4 @@
+// Package llm provides integration with AnythingLLM for AI chat functionality and workspace management.
 package llm
 
 import (
