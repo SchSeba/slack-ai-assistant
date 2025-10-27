@@ -1,0 +1,39 @@
+services:
+  llamaindex-server:
+    build:
+      context: .
+      dockerfile: llamaindex-server/Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - MIN_HITS=1
+      - SIMILARITY_CUTOFF=0.5
+      - CONFIDENCE_THRESHOLD=0.1
+      - TOP_K=5
+      - TEMPERATURE=0.0
+    volumes:
+      - ./local-delta:/app/storage-delta
+      - ./local-injected:/app/injected
+      - ./local-state:/app/state
+    restart: unless-stopped
+
+  slack-bot:
+    build:
+      context: ./slack-assistant
+      dockerfile: Dockerfile
+    command:
+      - --bot-token
+      - ${SLACK_BOT_TOKEN}
+      - --app-token
+      - ${SLACK_APP_TOKEN}
+    environment:
+      - AI_BACKEND=llamaindex
+      - LLAMAINDEX_HOST=http://llamaindex-server:5000
+    depends_on:
+      - llamaindex-server
+    restart: unless-stopped
+    volumes:
+      - ./slack-bot-data:/data
+
+

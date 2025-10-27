@@ -6,6 +6,7 @@ toolchain go1.24.5
 
 require (
 	github.com/SchSeba/anythingllm-go-sdk v0.0.0-20250729074725-9bd598df63c7
+	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.38.0
 	github.com/slack-go/slack v0.17.3

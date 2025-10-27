@@ -50,7 +50,11 @@ A sophisticated Slack bot built with Go that integrates with AnythingLLM to prov
    - Copy the "Bot User OAuth Token" (starts with `xoxb-`)
    - Copy the "App-Level Token" (starts with `xapp-`)
 
-### 2. AnythingLLM Setup
+### 2. AI Backend Setup
+
+You can choose between two AI backends:
+
+#### Option A: AnythingLLM (Default)
 
 1. **Install AnythingLLM**: Set up your AnythingLLM instance
 2. **Get API Credentials**: Obtain your AnythingLLM API key
@@ -60,12 +64,56 @@ A sophisticated Slack bot built with Go that integrates with AnythingLLM to prov
    export ANYTHINGLLM_API_KEY="your-api-key"
    ```
 
+#### Option B: LlamaIndex with Gemini (RAG-based)
+
+1. **Get Gemini API Key**: Obtain from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. **Set Environment Variables**:
+   ```bash
+   export GEMINI_API_KEY="your-gemini-api-key"
+   export AI_BACKEND="llamaindex"
+   export LLAMAINDEX_HOST="http://localhost:5000"  # or your server URL
+   ```
+3. **Add Knowledge Base**: Place documentation in `rag-data/{project}/{version}/` directories
+4. **Build Indexes** (for local development):
+   ```bash
+   cd llamaindex-server
+   ./setup.sh  # Sets up uv and installs dependencies
+   uv run build_indexes.py --data ../rag-data --out ./local-storage
+   ```
+5. **Run LlamaIndex Server** (local):
+   ```bash
+   cd llamaindex-server
+   STORAGE_ROOT=./local-storage \
+   DELTA_ROOT=./local-delta \
+   INJECT_ROOT=./local-injected \
+   STATE_ROOT=./local-state \
+   uv run app.py
+   ```
+
+   Or using Docker:
+   ```bash
+   cd llamaindex-server
+   # Build image (NO API key needed - never pass secrets at build time!)
+   docker build -t llamaindex-server .
+   
+   # Run container (API key passed at runtime only)
+   docker run -p 5000:5000 \
+     -e GEMINI_API_KEY=$GEMINI_API_KEY \
+     -v $(pwd)/local-delta:/app/storage-delta \
+     -v $(pwd)/local-injected:/app/injected \
+     -v $(pwd)/local-state:/app/state \
+     llamaindex-server
+   ```
+   
+   **Security Note**: The GEMINI_API_KEY is **NEVER** passed during build time or baked into the Docker image. It is only provided at runtime via environment variable. On first startup, the server will build indexes from the `rag-data` directory (takes a few minutes). Subsequent startups load pre-built indexes instantly.
+
 ## Project Structure
 
 This is a multi-service project containing:
 
 - **slack-assistant/** - Go-based Slack bot service (main application)
-- Future: Python-based microservice (coming soon)
+- **llamaindex-server/** - Python-based LlamaIndex RAG service (optional AI backend)
+- **rag-data/** - Knowledge base for LlamaIndex RAG
 
 ## Installation
 
@@ -90,11 +138,26 @@ make build-go
 
 ### Environment Variables
 
-Set the following environment variables:
-
+**For AnythingLLM (default):**
 ```bash
 export ANYTHINGLLM_HOST="your-anythingllm-host"
 export ANYTHINGLLM_API_KEY="your-api-key"
+```
+
+**For LlamaIndex:**
+```bash
+export AI_BACKEND="llamaindex"
+export LLAMAINDEX_HOST="http://localhost:5000"
+export GEMINI_API_KEY="your-gemini-api-key"
+```
+
+**LlamaIndex Server Configuration (optional tuning):**
+```bash
+export MIN_HITS=2                    # Minimum retrieval hits before answering
+export SIMILARITY_CUTOFF=0.75        # Minimum similarity score for retrieved docs
+export CONFIDENCE_THRESHOLD=0.2      # Minimum confidence to answer (vs "I don't know")
+export TOP_K=5                       # Number of documents to retrieve
+export TEMPERATURE=0.0               # LLM temperature (0.0 = deterministic)
 ```
 
 ### Running the Bot
@@ -232,10 +295,19 @@ The bot automatically creates and manages a SQLite database (`slack-ai-assistant
 
 ## Dependencies
 
+### Go Dependencies
 - `github.com/spf13/cobra` - CLI framework
 - `github.com/slack-go/slack` - Official Slack Go SDK
 - `github.com/SchSeba/anythingllm-go-sdk` - AnythingLLM Go SDK
+- `github.com/google/uuid` - UUID generation for LlamaIndex threads
 - SQLite database driver and ORM functionality
+
+### Python Dependencies (LlamaIndex server)
+- `Flask` - Web framework
+- `llama-index-core` - RAG framework core
+- `llama-index-llms-google-genai` - Google GenAI LLM (latest unified SDK)
+- `llama-index-embeddings-google-genai` - Google GenAI embeddings (latest unified SDK)
+- `google-generativeai` - Google AI SDK (installed as dependency)
 
 ## Troubleshooting
 
@@ -247,9 +319,8 @@ The bot automatically creates and manages a SQLite database (`slack-ai-assistant
    - Check that your app has the required OAuth scopes
 
 2. **AI Responses Not Working**:
-   - Verify `ANYTHINGLLM_HOST` and `ANYTHINGLLM_API_KEY` environment variables
-   - Check AnythingLLM instance is accessible
-   - Ensure the specified project workspaces exist in AnythingLLM
+   - **AnythingLLM**: Verify `ANYTHINGLLM_HOST` and `ANYTHINGLLM_API_KEY` environment variables; check AnythingLLM instance is accessible; ensure workspaces exist
+   - **LlamaIndex**: Verify `GEMINI_API_KEY` is set; ensure LlamaIndex server is running on `LLAMAINDEX_HOST`; check that base indexes exist in storage directory; verify project/version docs exist in `rag-data/`
 
 3. **Database Errors**:
    - Check write permissions in the application directory
@@ -284,9 +355,45 @@ Run with `--debug` flag to see detailed logs:
 
 ### Extending AI Features
 
-1. Add new methods to the LLM interface in `llm/llm.go`
-2. Implement AnythingLLM API calls
+1. Add new methods to the LLM interface in `llm/types.go`
+2. Implement in both `llm/llm.go` (AnythingLLM) and `llm/llamaindex.go` (LlamaIndex)
 3. Update agent to use new LLM capabilities
+
+### Adding Knowledge to LlamaIndex
+
+1. Create directory structure: `rag-data/{project}/{version}/`
+2. Add markdown, text, or other documents to the directory
+3. **For local development**: Rebuild indexes:
+   ```bash
+   cd llamaindex-server
+   uv run build_indexes.py --data ../rag-data --out ./local-storage
+   ```
+4. **For Docker**: Rebuild the image and restart:
+   ```bash
+   docker-compose down
+   docker-compose build llamaindex-server  # Rebuilds with new docs
+   docker-compose up
+   ```
+   The indexes will be built automatically on first startup (no API key in build!)
+5. **For production**: Consider pre-building indexes locally and mounting as volume for faster startup
+
+### LlamaIndex Architecture
+
+**Security**: 
+- ✅ **GEMINI_API_KEY is NEVER in the Docker image** - Only passed at runtime as environment variable
+- ✅ Images can be safely pushed to public registries
+- ✅ No secrets in build args or layers
+
+**Abstention Logic**: The server uses strict "I don't know" behavior when:
+- Fewer than `MIN_HITS` relevant documents are retrieved
+- Document similarity scores are below `SIMILARITY_CUTOFF`
+- Aggregate confidence is below `CONFIDENCE_THRESHOLD`
+
+**Data Persistence**:
+- Base indexes: Built on first container startup from `rag-data` directory, or prebuilt locally via `build_indexes.py`
+- Delta indexes: Runtime injections stored as JSONL and indexed incrementally
+- Thread memory: Per-thread conversation history in JSON files
+- All persisted data survives server restarts
 
 ### Custom Event Handling
 
