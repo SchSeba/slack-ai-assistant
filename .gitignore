@@ -5,9 +5,20 @@
 
 # Build artifacts  
 bin/
-slack-ai-assistant
+slack-assistant/bin/
+slack-assistant/slack-ai-assistant
+slack-assistant/coverage.out
+slack-assistant/coverage.html
 
 # IDE files
 .vscode/
 .idea/
 .claude/
+
+# Python virtual environments (for future Python service)
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/

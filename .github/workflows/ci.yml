@@ -32,14 +32,18 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-${{ hashFiles('slack-assistant/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
 
     - name: Download dependencies
-      run: go mod download
+      run: make deps-go
 
     - name: Run go fmt
+      run: make fmt-go
+
+    - name: Check formatting
+      working-directory: slack-assistant
       run: |
         if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
           echo "The following files are not formatted:"
@@ -48,22 +52,23 @@ jobs:
         fi
 
     - name: Run go vet
-      run: go vet ./...
+      run: make vet-go
 
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v8
       with:
         version: ${{ env.GOLANGCI_LINT_VERSION }}
         args: --timeout=5m
+        working-directory: slack-assistant
 
     - name: Check mock files are up to date
       run: |
         # Generate mock files
-        make mock-generate
+        make mock-generate-go
         
         # Check if any files were changed
         if [ -n "$(git status --porcelain)" ]; then
-          echo "Mock files are out of date. Please run 'make mock-generate' and commit the changes."
+          echo "Mock files are out of date. Please run 'make mock-generate-go' and commit the changes."
           echo "Changed files:"
           git status --porcelain
           git diff
@@ -89,26 +94,29 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-${{ hashFiles('slack-assistant/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
 
     - name: Download dependencies
-      run: go mod download
+      run: make deps-go
 
     - name: Run unit tests
-      run: go test -v -race -coverprofile=coverage.out ./...
+      run: make test-race-go
 
     - name: Generate coverage report
-      run: go tool cover -html=coverage.out -o coverage.html
+      working-directory: slack-assistant
+      run: |
+        go test -v -coverprofile=coverage.out ./...
+        go tool cover -html=coverage.out -o coverage.html
 
     - name: Upload coverage reports
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
         path: |
-          coverage.out
-          coverage.html
+          slack-assistant/coverage.out
+          slack-assistant/coverage.html
 
   container-build:
     name: Container Build
@@ -136,7 +144,8 @@ jobs:
     - name: Build container image
       uses: docker/build-push-action@v6
       with:
-        context: .
+        context: slack-assistant
+        file: slack-assistant/Dockerfile
         push: false
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -151,7 +160,8 @@ jobs:
     - name: Export image for testing
       uses: docker/build-push-action@v6
       with:
-        context: .
+        context: slack-assistant
+        file: slack-assistant/Dockerfile
         load: true
         tags: test-image:latest
         build-args: |
@@ -203,7 +213,8 @@ jobs:
     - name: Build and push container image
       uses: docker/build-push-action@v6
       with:
-        context: .
+        context: slack-assistant
+        file: slack-assistant/Dockerfile
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -230,7 +241,8 @@ jobs:
     - name: Build image for scanning
       uses: docker/build-push-action@v6
       with:
-        context: .
+        context: slack-assistant
+        file: slack-assistant/Dockerfile
         load: true
         tags: scan-image:latest
         build-args: |

@@ -60,6 +60,13 @@ A sophisticated Slack bot built with Go that integrates with AnythingLLM to prov
    export ANYTHINGLLM_API_KEY="your-api-key"
    ```
 
+## Project Structure
+
+This is a multi-service project containing:
+
+- **slack-assistant/** - Go-based Slack bot service (main application)
+- Future: Python-based microservice (coming soon)
+
 ## Installation
 
 ```bash
@@ -67,11 +74,16 @@ A sophisticated Slack bot built with Go that integrates with AnythingLLM to prov
 git clone <your-repo-url>
 cd slack-ai-assistant
 
-# Install dependencies
+# Install dependencies for Go service
+cd slack-assistant
 go mod tidy
 
 # Build the application
 go build -o slack-ai-assistant ./cmd/server
+
+# Or use make from the project root
+cd ..
+make build-go
 ```
 
 ## Usage
@@ -88,6 +100,9 @@ export ANYTHINGLLM_API_KEY="your-api-key"
 ### Running the Bot
 
 ```bash
+# From the slack-assistant directory
+cd slack-assistant
+
 # Basic usage
 ./slack-ai-assistant --bot-token "xoxb-your-bot-token" --app-token "xapp-your-app-token"
 
@@ -102,6 +117,10 @@ export ANYTHINGLLM_API_KEY="your-api-key"
 export SLACK_BOT_TOKEN="xoxb-your-bot-token"
 export SLACK_APP_TOKEN="xapp-your-app-token"
 ./slack-ai-assistant --bot-token "$SLACK_BOT_TOKEN" --app-token "$SLACK_APP_TOKEN"
+
+# Or use make from the project root
+cd ..
+make run-go
 ```
 
 ### Command Line Options
@@ -160,23 +179,29 @@ If incorrect parameters are provided, the bot will respond with helpful usage in
 
 ```
 slack-ai-assistant/
-├── cmd/server/
-│   ├── main.go              # Main application entry point
-│   └── slack-ai-assistant.db # SQLite database (auto-created)
-├── pkg/
-│   ├── agent/
-│   │   ├── agent.go         # Core agent logic and command handling
-│   │   └── workerpool.go    # Worker pool for concurrent processing
-│   ├── database/
-│   │   └── database.go      # Database interface and operations
-│   ├── llm/
-│   │   ├── llm.go          # AnythingLLM client implementation
-│   │   └── types.go        # LLM-related type definitions
-│   └── slack-bot/
-│       └── slack-bot.go    # Slack API and Socket Mode handling
-├── go.mod                  # Go module dependencies
-├── go.sum                  # Dependency checksums
-└── README.md              # This file
+├── slack-assistant/        # Go-based Slack bot service
+│   ├── cmd/server/
+│   │   ├── main.go              # Main application entry point
+│   │   └── slack-ai-assistant.db # SQLite database (auto-created)
+│   ├── pkg/
+│   │   ├── agent/
+│   │   │   ├── agent.go         # Core agent logic and command handling
+│   │   │   └── workerpool.go    # Worker pool for concurrent processing
+│   │   ├── database/
+│   │   │   └── database.go      # Database interface and operations
+│   │   ├── llm/
+│   │   │   ├── llm.go          # AnythingLLM client implementation
+│   │   │   └── types.go        # LLM-related type definitions
+│   │   ├── mocks/              # Generated mock files for testing
+│   │   └── slack-bot/
+│   │       └── slack-bot.go    # Slack API and Socket Mode handling
+│   ├── go.mod                  # Go module dependencies
+│   ├── go.sum                  # Dependency checksums
+│   ├── Dockerfile              # Container image for Go service
+│   └── .golangci.yml          # Go linter configuration
+├── Makefile                   # Build automation for all services
+├── README.md                  # Project documentation
+└── .gitignore                # Git ignore patterns
 ```
 
 ### Key Components

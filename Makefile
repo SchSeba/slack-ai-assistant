@@ -1,7 +1,8 @@
-# Makefile for Slack AI Assistant
+# Makefile for Slack AI Assistant Project
 
 # Variables
 APP_NAME := slack-ai-assistant
+GO_SERVICE_DIR := slack-assistant
 BINARY_NAME := $(APP_NAME)
 GO_VERSION := 1.24
 MAIN_PATH := ./cmd/server
@@ -32,85 +33,125 @@ help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 .PHONY: clean
-clean: ## Clean build artifacts
-	@echo "Cleaning build artifacts..."
-	rm -rf $(BUILD_DIR)
-	rm -f $(BINARY_NAME)
-	go clean -cache
+clean: clean-go ## Clean all build artifacts
+	@echo "Cleaning all build artifacts..."
+
+.PHONY: clean-go
+clean-go: ## Clean Go build artifacts
+	@echo "Cleaning Go build artifacts..."
+	cd $(GO_SERVICE_DIR) && rm -rf $(BUILD_DIR)
+	cd $(GO_SERVICE_DIR) && rm -f $(BINARY_NAME)
+	cd $(GO_SERVICE_DIR) && go clean -cache
 	$(CONTAINER_RUNTIME) image prune -f --filter label=app=$(APP_NAME) || true
 
 .PHONY: deps
-deps: ## Download and tidy dependencies
-	@echo "Downloading dependencies..."
-	go mod download
-	go mod tidy
+deps: deps-go ## Download and tidy all dependencies
+
+.PHONY: deps-go
+deps-go: ## Download and tidy Go dependencies
+	@echo "Downloading Go dependencies..."
+	cd $(GO_SERVICE_DIR) && go mod download
+	cd $(GO_SERVICE_DIR) && go mod tidy
 
 .PHONY: fmt
-fmt: ## Format Go code
-	@echo "Formatting code..."
-	go fmt ./...
+fmt: fmt-go ## Format all code
+
+.PHONY: fmt-go
+fmt-go: ## Format Go code
+	@echo "Formatting Go code..."
+	cd $(GO_SERVICE_DIR) && go fmt ./...
 
 .PHONY: vet
-vet: ## Run go vet
+vet: vet-go ## Run all vet checks
+
+.PHONY: vet-go
+vet-go: ## Run go vet
 	@echo "Running go vet..."
-	go vet ./...
+	cd $(GO_SERVICE_DIR) && go vet ./...
 
 .PHONY: lint
-lint: ## Run golangci-lint
+lint: lint-go ## Run all linters
+
+.PHONY: lint-go
+lint-go: ## Run golangci-lint
 	@echo "Running golangci-lint..."
 	@if ! which golangci-lint > /dev/null; then \
 		echo "Installing golangci-lint $(GOLANGCI_LINT_VERSION)..."; \
 		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
 	fi
-	golangci-lint run
+	cd $(GO_SERVICE_DIR) && golangci-lint run
 
 .PHONY: test
-test: ## Run unit tests
-	@echo "Running unit tests..."
-	go test -v ./...
+test: test-go ## Run all unit tests
+
+.PHONY: test-go
+test-go: ## Run Go unit tests
+	@echo "Running Go unit tests..."
+	cd $(GO_SERVICE_DIR) && go test -v ./...
 
 .PHONY: test-race
-test-race: ## Run unit tests with race detection
-	@echo "Running unit tests with race detection..."
-	go test -v -race ./...
+test-race: test-race-go ## Run all unit tests with race detection
+
+.PHONY: test-race-go
+test-race-go: ## Run Go unit tests with race detection
+	@echo "Running Go unit tests with race detection..."
+	cd $(GO_SERVICE_DIR) && go test -v -race ./...
 
 .PHONY: test-coverage
-test-coverage: ## Run tests with coverage report
-	@echo "Running tests with coverage..."
-	go test -v -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+test-coverage: test-coverage-go ## Run all tests with coverage report
+
+.PHONY: test-coverage-go
+test-coverage-go: ## Run Go tests with coverage report
+	@echo "Running Go tests with coverage..."
+	cd $(GO_SERVICE_DIR) && go test -v -coverprofile=coverage.out ./...
+	cd $(GO_SERVICE_DIR) && go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: $(GO_SERVICE_DIR)/coverage.html"
 
 .PHONY: mock-generate
-mock-generate: ## Generate mock files using mockgen
-	@echo "Generating mock files..."
-	@mkdir -p pkg/mocks/database pkg/mocks/slack-bot pkg/mocks/llm
-	go run go.uber.org/mock/mockgen@v0.5.2 -source=pkg/database/database.go -destination=pkg/mocks/database/mock_database.go -package=database
-	go run go.uber.org/mock/mockgen@v0.5.2 -source=pkg/slack-bot/slack-bot.go -destination=pkg/mocks/slack-bot/mock_slack_bot.go -package=slackbot
-	go run go.uber.org/mock/mockgen@v0.5.2 -source=pkg/llm/types.go -destination=pkg/mocks/llm/mock_llm.go -package=llm
-	@echo "Mock files generated successfully!"
+mock-generate: mock-generate-go ## Generate all mock files
+
+.PHONY: mock-generate-go
+mock-generate-go: ## Generate Go mock files using mockgen
+	@echo "Generating Go mock files..."
+	cd $(GO_SERVICE_DIR) && mkdir -p pkg/mocks/database pkg/mocks/slack-bot pkg/mocks/llm
+	cd $(GO_SERVICE_DIR) && go run go.uber.org/mock/mockgen@v0.5.2 -source=pkg/database/database.go -destination=pkg/mocks/database/mock_database.go -package=database
+	cd $(GO_SERVICE_DIR) && go run go.uber.org/mock/mockgen@v0.5.2 -source=pkg/slack-bot/slack-bot.go -destination=pkg/mocks/slack-bot/mock_slack_bot.go -package=slackbot
+	cd $(GO_SERVICE_DIR) && go run go.uber.org/mock/mockgen@v0.5.2 -source=pkg/llm/types.go -destination=pkg/mocks/llm/mock_llm.go -package=llm
+	@echo "Go mock files generated successfully!"
 
 .PHONY: build
-build: deps fmt vet ## Build the application
+build: build-go ## Build all services
+
+.PHONY: build-go
+build-go: deps-go fmt-go vet-go ## Build the Go application
 	@echo "Building $(BINARY_NAME) version $(VERSION)..."
-	mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PATH)
-	@echo "Binary built: $(BUILD_DIR)/$(BINARY_NAME)"
+	cd $(GO_SERVICE_DIR) && mkdir -p $(BUILD_DIR)
+	cd $(GO_SERVICE_DIR) && CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PATH)
+	@echo "Binary built: $(GO_SERVICE_DIR)/$(BUILD_DIR)/$(BINARY_NAME)"
 
 .PHONY: build-local
-build-local: ## Build for local development (no deps check)
+build-local: build-local-go ## Build all services for local development
+
+.PHONY: build-local-go
+build-local-go: ## Build Go app for local development (no deps check)
 	@echo "Building $(BINARY_NAME) for local development..."
-	CGO_ENABLED=1 go build $(LDFLAGS) -o $(BINARY_NAME) $(MAIN_PATH)
+	cd $(GO_SERVICE_DIR) && CGO_ENABLED=1 go build $(LDFLAGS) -o $(BINARY_NAME) $(MAIN_PATH)
 
 .PHONY: run
-run: build-local ## Build and run the application locally
+run: run-go ## Run the application locally
+
+.PHONY: run-go
+run-go: build-local-go ## Build and run the Go application locally
 	@echo "Running $(BINARY_NAME)..."
 	@echo "Note: You need to provide --bot-token and --app-token flags"
-	./$(BINARY_NAME) --help
+	cd $(GO_SERVICE_DIR) && ./$(BINARY_NAME) --help
 
 .PHONY: install-tools
-install-tools: ## Install required development tools
-	@echo "Installing development tools..."
+install-tools: install-tools-go ## Install all required development tools
+
+.PHONY: install-tools-go
+install-tools-go: ## Install required Go development tools
+	@echo "Installing Go development tools..."
 	@if ! which golangci-lint > /dev/null; then \
 		echo "Installing golangci-lint $(GOLANGCI_LINT_VERSION)..."; \
 		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
@@ -118,7 +159,10 @@ install-tools: ## Install required development tools
 
 # Container targets
 .PHONY: container-build
-container-build: ## Build container image
+container-build: container-build-go ## Build all container images
+
+.PHONY: container-build-go
+container-build-go: ## Build Go container image
 	@echo "Building container image $(CONTAINER_REPO):$(VERSION) using $(CONTAINER_RUNTIME)..."
 	$(CONTAINER_RUNTIME) build \
 		--platform $(PLATFORM) \
@@ -131,16 +175,23 @@ container-build: ## Build container image
 		--label commit=$(COMMIT_HASH) \
 		-t $(CONTAINER_REPO):$(VERSION) \
 		-t $(CONTAINER_REPO):latest \
-		.
+		-f $(GO_SERVICE_DIR)/Dockerfile \
+		$(GO_SERVICE_DIR)
 
 .PHONY: container-push
-container-push: ## Push container image to registry
+container-push: container-push-go ## Push all container images to registry
+
+.PHONY: container-push-go
+container-push-go: ## Push Go container image to registry
 	@echo "Pushing container image to $(CONTAINER_REPO) using $(CONTAINER_RUNTIME)..."
 	$(CONTAINER_RUNTIME) push $(CONTAINER_REPO):$(VERSION)
 	$(CONTAINER_RUNTIME) push $(CONTAINER_REPO):latest
 
 .PHONY: container-run
-container-run: ## Run container locally
+container-run: container-run-go ## Run container locally
+
+.PHONY: container-run-go
+container-run-go: ## Run Go container locally
 	@echo "Running container locally using $(CONTAINER_RUNTIME)..."
 	@echo "Note: You need to set SLACK_BOT_TOKEN, SLACK_APP_TOKEN, ANYTHINGLLM_HOST, and ANYTHINGLLM_API_KEY environment variables"
 	$(CONTAINER_RUNTIME) run --rm -it \
