@@ -238,3 +238,88 @@ version: ## Show version information
 	@echo "Container Runtime: $(CONTAINER_RUNTIME)"
 	@echo "Container Repo: $(CONTAINER_REPO)"
 	@echo "Golangci-lint Version: $(GOLANGCI_LINT_VERSION)"
+
+# LlamaIndex Server targets
+.PHONY: llamaindex-build-indexes
+llamaindex-build-indexes: ## Build LlamaIndex base indexes from rag-data
+	@echo "Building LlamaIndex indexes..."
+	@if [ -z "$$GEMINI_API_KEY" ]; then \
+		echo "Error: GEMINI_API_KEY environment variable is required"; \
+		exit 1; \
+	fi
+	cd llamaindex-server && python build_indexes.py --data ../rag-data --out ./local-storage
+
+.PHONY: llamaindex-server
+llamaindex-server: ## Run LlamaIndex server locally
+	@echo "Starting LlamaIndex server..."
+	@if [ -z "$$GEMINI_API_KEY" ]; then \
+		echo "Error: GEMINI_API_KEY environment variable is required"; \
+		exit 1; \
+	fi
+	cd llamaindex-server && \
+	STORAGE_ROOT=./local-storage \
+	DELTA_ROOT=./local-delta \
+	INJECT_ROOT=./local-injected \
+	STATE_ROOT=./local-state \
+	FLASK_APP=app.py \
+	flask run
+
+.PHONY: llamaindex-test
+llamaindex-test: ## Run LlamaIndex server tests
+	@echo "Running LlamaIndex server tests..."
+	cd llamaindex-server && pytest test_server.py -v
+
+.PHONY: llamaindex-container-build
+llamaindex-container-build: ## Build LlamaIndex server container
+	@echo "Building LlamaIndex container..."
+	@echo "Note: GEMINI_API_KEY is passed at runtime, not build time (secure!)"
+	$(CONTAINER_RUNTIME) build \
+		-t $(CONTAINER_REPO)-llamaindex:$(VERSION) \
+		-t $(CONTAINER_REPO)-llamaindex:latest \
+		-f llamaindex-server/Dockerfile \
+		.
+
+.PHONY: llamaindex-setup
+llamaindex-setup: ## Set up Python environment for LlamaIndex
+	@echo "Setting up LlamaIndex Python environment..."
+	cd llamaindex-server && python -m venv .venv
+	@echo "Virtual environment created. Activate with:"
+	@echo "  cd llamaindex-server && source .venv/bin/activate"
+	@echo "Then install dependencies:"
+	@echo "  pip install -r requirements.txt"
+
+.PHONY: docker-compose-up
+docker-compose-up: ## Start all services with docker-compose
+	@echo "Starting services with docker-compose..."
+	@if [ -z "$$GEMINI_API_KEY" ]; then \
+		echo "Error: GEMINI_API_KEY environment variable is required"; \
+		exit 1; \
+	fi
+	docker-compose up -d
+
+.PHONY: docker-compose-down
+docker-compose-down: ## Stop all services with docker-compose
+	@echo "Stopping services with docker-compose..."
+	docker-compose down
+
+.PHONY: docker-compose-logs
+docker-compose-logs: ## Show logs from docker-compose services
+	docker-compose logs -f
+
+.PHONY: podman-compose-up
+podman-compose-up: ## Start all services with podman compose
+	@echo "Starting services with podman compose..."
+	@if [ -z "$$GEMINI_API_KEY" ]; then \
+		echo "Error: GEMINI_API_KEY environment variable is required"; \
+		exit 1; \
+	fi
+	podman compose up -d
+
+.PHONY: podman-compose-down
+podman-compose-down: ## Stop all services with podman compose
+	@echo "Stopping services with podman compose..."
+	podman compose down
+
+.PHONY: podman-compose-logs
+podman-compose-logs: ## Show logs from podman compose services
+	podman compose logs -f

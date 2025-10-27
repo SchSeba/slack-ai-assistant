@@ -66,5 +66,5 @@ USER 65534:65534
 # Entry point
 ENTRYPOINT ["/slack-ai-assistant"]
 
-# Default command
+# Default command (shows help - override in docker-compose)
 CMD ["--help"]

@@ -39,6 +39,12 @@ func (c *LLMClient) CreateThread(project, version string) (string, error) {
 	// Check if the slug exist
 	workspaceInfoRequest := c.apiClient.WorkspacesAPI.V1WorkspaceSlugGet(context.Background(), slug)
 	workspaceInfo, response, err := workspaceInfoRequest.Execute()
+	if response != nil && response.Body != nil {
+		defer func() {
+			//nolint:errcheck // response body close in defer
+			_ = response.Body.Close()
+		}()
+	}
 	if err != nil {
 		fmt.Printf("❌ Failed to get workspace info: %v\n, %s", err, response.Status)
 		return "", err
@@ -47,6 +53,12 @@ func (c *LLMClient) CreateThread(project, version string) (string, error) {
 
 	request := c.apiClient.WorkspaceThreadsAPI.V1WorkspaceSlugThreadNewPost(context.Background(), slug)
 	slugThreadInfo, response, err := request.Execute()
+	if response != nil && response.Body != nil {
+		defer func() {
+			//nolint:errcheck // response body close in defer
+			_ = response.Body.Close()
+		}()
+	}
 	fmt.Printf("HTTP Response Status: %s\n", response.Status)
 	if err != nil {
 		return "", err
@@ -88,6 +100,12 @@ func (c *LLMClient) Inject(project, version, message string) error {
 		},
 	})
 	documentInjectInfo, response, err := request.Execute()
+	if response != nil && response.Body != nil {
+		defer func() {
+			//nolint:errcheck // response body close in defer
+			_ = response.Body.Close()
+		}()
+	}
 	if err != nil {
 		return fmt.Errorf("failed to inject messages: %w", err)
 	}
@@ -107,6 +125,12 @@ func (c *LLMClient) sendMessageToChatWithMode(slug, threadSlug, message, mode st
 		UserId:  *anythingllm.NewNullableInt32(anythingllm.PtrInt32(2)),
 	})
 	chatInfo, response, err := request.Execute()
+	if response != nil && response.Body != nil {
+		defer func() {
+			//nolint:errcheck // response body close in defer
+			_ = response.Body.Close()
+		}()
+	}
 	fmt.Printf("HTTP Response Status: %s\n", response.Status)
 	if err != nil {
 		return "", err

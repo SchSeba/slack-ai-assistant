@@ -2,6 +2,7 @@
 *.db
 *.sqlite
 *.log
+.env
 
 # Build artifacts  
 bin/
@@ -15,10 +16,16 @@ slack-assistant/coverage.html
 .idea/
 .claude/
 
-# Python virtual environments (for future Python service)
+# Python virtual environments and LlamaIndex server
 venv/
 .venv/
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+
+# LlamaIndex local storage
+local-storage/
+local-delta/
+local-injected/
+local-state/

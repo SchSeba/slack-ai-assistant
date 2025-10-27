@@ -107,7 +107,16 @@ func startSlackBot() {
 		log.Fatalf("❌ Failed to create Slack bot: %v", err)
 	}
 
-	llmClient := llm.NewLLMClient()
+	// Select AI backend based on environment variable
+	aiBackend := os.Getenv("AI_BACKEND")
+	var llmClient llm.Interface
+	if aiBackend == "llamaindex" {
+		fmt.Println("🧠 Using LlamaIndex backend")
+		llmClient = llm.NewLlamaIndexClient()
+	} else {
+		fmt.Println("🧠 Using AnythingLLM backend")
+		llmClient = llm.NewLLMClient()
+	}
 
 	agentProcess := agent.NewAgent(db, slackBot, llmClient, appMentionChannel, slashCommandChannel, workers)
 	fmt.Println("👋 Starting Slack AI Assistant Bot...")
