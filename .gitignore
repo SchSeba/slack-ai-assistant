@@ -29,3 +29,6 @@ local-storage/
 local-delta/
 local-injected/
 local-state/
+
+# slack bot data
+slack-bot-data/

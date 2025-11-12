@@ -1,198 +1,233 @@
 # Slack AI Assistant
 
-A sophisticated Slack bot built with Go that integrates with AnythingLLM to provide AI-powered assistance. The bot uses Cobra CLI framework, Slack's Socket Mode for real-time communication, and includes a worker pool for concurrent event processing.
+A sophisticated Slack bot built with Go that integrates with LlamaIndex RAG to provide AI-powered assistance with your documentation. The bot uses Cobra CLI framework, Slack's Socket Mode for real-time communication, and includes a worker pool for concurrent event processing.
 
 ## Features
 
 - ✅ **Socket Mode**: Real-time WebSocket communication with Slack
-- ✅ **AI Integration**: Powered by AnythingLLM for intelligent responses
+- ✅ **RAG-Powered AI**: LlamaIndex with Google Gemini for intelligent, documentation-grounded responses
 - ✅ **Worker Pool**: Concurrent event processing with configurable worker count
 - ✅ **Database Integration**: SQLite database for thread and conversation management
 - ✅ **App Mentions**: Responds to bot mentions with AI-powered commands
 - ✅ **Thread Management**: Maintains conversation context across Slack threads
 - ✅ **Document Injection**: Ability to inject content into AI knowledge base
 - ✅ **Content Elaboration**: AI-powered content expansion and explanation
-- ✅ **Cobra CLI**: Professional command-line interface with comprehensive flags
+- ✅ **Docker Compose**: Easy multi-container deployment
 - ✅ **Graceful Shutdown**: Signal handling for clean application termination
 - ✅ **Debug Mode**: Configurable logging and debugging
 
-## Prerequisites
+## Quick Start with Docker Compose
 
-### 1. Slack App Setup
+### Prerequisites
 
-1. **Create a Slack App**:
-   - Go to [api.slack.com/apps](https://api.slack.com/apps)
-   - Click "Create New App" → "From scratch"
-   - Choose a name and workspace
+1. **Docker & Docker Compose** installed on your system
+2. **Slack App** configured with Socket Mode (see detailed setup below)
+3. **Gemini API Key** from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
-2. **Configure Bot Permissions**:
-   - Go to "OAuth & Permissions"
-   - Add these Bot Token Scopes:
-     - `app_mentions:read` - To receive app mention events
-     - `channels:history` - To read messages in channels
-     - `chat:write` - To send messages
-     - `commands` - For slash commands (if needed)
-
-3. **Enable Socket Mode**:
-   - Go to "Socket Mode" in your app settings
-   - Enable Socket Mode
-   - Generate an App-Level Token with `connections:write` scope
-
-4. **Enable Events**:
-   - Go to "Event Subscriptions"
-   - Enable Events
-   - Subscribe to Bot Events:
-     - `app_mention` - When someone mentions your bot
-
-5. **Install the App**:
-   - Go to "Install App" 
-   - Install to your workspace
-   - Copy the "Bot User OAuth Token" (starts with `xoxb-`)
-   - Copy the "App-Level Token" (starts with `xapp-`)
-
-### 2. AI Backend Setup
-
-You can choose between two AI backends:
-
-#### Option A: AnythingLLM (Default)
-
-1. **Install AnythingLLM**: Set up your AnythingLLM instance
-2. **Get API Credentials**: Obtain your AnythingLLM API key
-3. **Set Environment Variables**:
-   ```bash
-   export ANYTHINGLLM_HOST="your-anythingllm-host"
-   export ANYTHINGLLM_API_KEY="your-api-key"
-   ```
-
-#### Option B: LlamaIndex with Gemini (RAG-based)
-
-1. **Get Gemini API Key**: Obtain from [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. **Set Environment Variables**:
-   ```bash
-   export GEMINI_API_KEY="your-gemini-api-key"
-   export AI_BACKEND="llamaindex"
-   export LLAMAINDEX_HOST="http://localhost:5000"  # or your server URL
-   ```
-3. **Add Knowledge Base**: Place documentation in `rag-data/{project}/{version}/` directories
-4. **Build Indexes** (for local development):
-   ```bash
-   cd llamaindex-server
-   ./setup.sh  # Sets up uv and installs dependencies
-   uv run build_indexes.py --data ../rag-data --out ./local-storage
-   ```
-5. **Run LlamaIndex Server** (local):
-   ```bash
-   cd llamaindex-server
-   STORAGE_ROOT=./local-storage \
-   DELTA_ROOT=./local-delta \
-   INJECT_ROOT=./local-injected \
-   STATE_ROOT=./local-state \
-   uv run app.py
-   ```
-
-   Or using Docker:
-   ```bash
-   cd llamaindex-server
-   # Build image (NO API key needed - never pass secrets at build time!)
-   docker build -t llamaindex-server .
-   
-   # Run container (API key passed at runtime only)
-   docker run -p 5000:5000 \
-     -e GEMINI_API_KEY=$GEMINI_API_KEY \
-     -v $(pwd)/local-delta:/app/storage-delta \
-     -v $(pwd)/local-injected:/app/injected \
-     -v $(pwd)/local-state:/app/state \
-     llamaindex-server
-   ```
-   
-   **Security Note**: The GEMINI_API_KEY is **NEVER** passed during build time or baked into the Docker image. It is only provided at runtime via environment variable. On first startup, the server will build indexes from the `rag-data` directory (takes a few minutes). Subsequent startups load pre-built indexes instantly.
-
-## Project Structure
-
-This is a multi-service project containing:
-
-- **slack-assistant/** - Go-based Slack bot service (main application)
-- **llamaindex-server/** - Python-based LlamaIndex RAG service (optional AI backend)
-- **rag-data/** - Knowledge base for LlamaIndex RAG
-
-## Installation
+### 1. Clone and Configure
 
 ```bash
 # Clone the repository
 git clone <your-repo-url>
 cd slack-ai-assistant
 
-# Install dependencies for Go service
-cd slack-assistant
-go mod tidy
+# Create .env file with your credentials
+cat > .env << 'EOF'
+# Slack Credentials (required)
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+SLACK_APP_TOKEN=xapp-your-app-token
 
-# Build the application
-go build -o slack-ai-assistant ./cmd/server
+# Gemini API Key (required)
+GEMINI_API_KEY=your-gemini-api-key
 
-# Or use make from the project root
-cd ..
-make build-go
+# Optional: LlamaIndex tuning parameters
+MIN_HITS=1
+SIMILARITY_CUTOFF=0.5
+CONFIDENCE_THRESHOLD=0.1
+TOP_K=5
+TEMPERATURE=0.0
+EOF
 ```
 
-## Usage
+### 2. Add Your Documentation
 
-### Environment Variables
-
-**For AnythingLLM (default):**
-```bash
-export ANYTHINGLLM_HOST="your-anythingllm-host"
-export ANYTHINGLLM_API_KEY="your-api-key"
-```
-
-**For LlamaIndex:**
-```bash
-export AI_BACKEND="llamaindex"
-export LLAMAINDEX_HOST="http://localhost:5000"
-export GEMINI_API_KEY="your-gemini-api-key"
-```
-
-**LlamaIndex Server Configuration (optional tuning):**
-```bash
-export MIN_HITS=2                    # Minimum retrieval hits before answering
-export SIMILARITY_CUTOFF=0.75        # Minimum similarity score for retrieved docs
-export CONFIDENCE_THRESHOLD=0.2      # Minimum confidence to answer (vs "I don't know")
-export TOP_K=5                       # Number of documents to retrieve
-export TEMPERATURE=0.0               # LLM temperature (0.0 = deterministic)
-```
-
-### Running the Bot
+Place your documentation files in the `rag-data` directory:
 
 ```bash
-# From the slack-assistant directory
-cd slack-assistant
-
-# Basic usage
-./slack-ai-assistant --bot-token "xoxb-your-bot-token" --app-token "xapp-your-app-token"
-
-# With custom worker count and debug mode
-./slack-ai-assistant \
-  --bot-token "xoxb-your-bot-token" \
-  --app-token "xapp-your-app-token" \
-  --workers 20 \
-  --debug
-
-# Using environment variables for tokens
-export SLACK_BOT_TOKEN="xoxb-your-bot-token"
-export SLACK_APP_TOKEN="xapp-your-app-token"
-./slack-ai-assistant --bot-token "$SLACK_BOT_TOKEN" --app-token "$SLACK_APP_TOKEN"
-
-# Or use make from the project root
-cd ..
-make run-go
+# Structure: rag-data/{project}/{version}/
+mkdir -p rag-data/myproject/1.0
+# Add your markdown, text, or PDF files
+cp /path/to/docs/* rag-data/myproject/1.0/
 ```
 
-### Command Line Options
+### 3. Build and Start Services
 
-- `--bot-token`, `-b`: Slack Bot Token (required)
-- `--app-token`, `-a`: Slack App Token (required)  
-- `--workers`, `-w`: Number of workers for concurrent event processing (default: 10)
-- `--debug`, `-d`: Enable debug mode for detailed logging
-- `--help`, `-h`: Show help message
+```bash
+# Build Docker images
+docker-compose build
+
+# Start all services (LlamaIndex server + Slack bot)
+make docker-compose-up
+
+# View logs
+make docker-compose-logs
+
+# First startup builds indexes (takes a few minutes)
+# Subsequent startups are instant
+```
+
+### 4. Stop Services
+
+```bash
+# Stop all services
+make docker-compose-down
+
+# Stop and remove volumes (clears all data)
+docker-compose down -v
+```
+
+## Detailed Slack App Setup
+
+### 1. Create a Slack App
+
+1. **Go to** [api.slack.com/apps](https://api.slack.com/apps)
+2. **Click** "Create New App" → "From scratch"
+3. **Choose** a name and workspace
+
+### 2. Configure Bot Permissions
+
+1. **Go to** "OAuth & Permissions"
+2. **Add these Bot Token Scopes**:
+   - `app_mentions:read` - To receive app mention events
+   - `channels:history` - To read messages in channels
+   - `chat:write` - To send messages
+   - `commands` - For slash commands (if needed)
+
+### 3. Enable Socket Mode
+
+1. **Go to** "Socket Mode" in your app settings
+2. **Enable** Socket Mode
+3. **Generate** an App-Level Token with `connections:write` scope
+4. **Copy** the token (starts with `xapp-`)
+
+### 4. Enable Events
+
+1. **Go to** "Event Subscriptions"
+2. **Enable** Events
+3. **Subscribe to Bot Events**:
+   - `app_mention` - When someone mentions your bot
+
+### 5. Install the App
+
+1. **Go to** "Install App"
+2. **Install** to your workspace
+3. **Copy** the "Bot User OAuth Token" (starts with `xoxb-`)
+4. **Copy** the "App-Level Token" (starts with `xapp-`)
+
+## Docker Compose Services
+
+The application consists of two services:
+
+### 1. LlamaIndex Server (`llamaindex-server`)
+- **Python-based RAG service** using LlamaIndex and Google Gemini
+- **Port**: 5000
+- **Volumes**:
+  - `./local-delta` - Runtime document injections
+  - `./local-injected` - Injected content storage
+  - `./local-state` - Thread memory and conversation state
+- **Auto-builds indexes** from `rag-data/` on first startup
+
+### 2. Slack Bot (`slack-bot`)
+- **Go-based Slack client** with Socket Mode
+- **Depends on**: llamaindex-server
+- **Volume**: `./slack-bot-data` - SQLite database and bot data
+
+## Configuration
+
+### Environment Variables (in .env file)
+
+**Required:**
+```bash
+SLACK_BOT_TOKEN=xoxb-your-bot-token          # From Slack OAuth & Permissions
+SLACK_APP_TOKEN=xapp-your-app-token          # From Slack Socket Mode
+GEMINI_API_KEY=your-gemini-api-key           # From Google AI Studio
+```
+
+**Optional - LlamaIndex Tuning:**
+```bash
+MIN_HITS=1                    # Minimum retrieval hits before answering (default: 1)
+SIMILARITY_CUTOFF=0.5         # Minimum similarity score (default: 0.5)
+CONFIDENCE_THRESHOLD=0.1      # Minimum confidence to answer (default: 0.1)
+TOP_K=5                       # Number of documents to retrieve (default: 5)
+TEMPERATURE=0.0               # LLM temperature, 0.0 = deterministic (default: 0.0)
+```
+
+### Docker Compose Commands
+
+**Common Make Commands:**
+```bash
+# Start services
+make docker-compose-up
+
+# View logs
+make docker-compose-logs
+
+# Stop services
+make docker-compose-down
+
+# Show all available make commands
+make help
+```
+
+**Additional Docker Compose Commands:**
+```bash
+# Build images (rebuild after adding new documents to rag-data/)
+docker-compose build
+
+# View logs for specific service
+docker-compose logs -f slack-bot          # Only bot logs
+docker-compose logs -f llamaindex-server  # Only LlamaIndex logs
+
+# Restart specific service
+docker-compose restart slack-bot
+docker-compose restart llamaindex-server
+
+# Stop and remove volumes (full cleanup)
+docker-compose down -v
+
+# Rebuild and restart
+docker-compose build && make docker-compose-up
+```
+
+## Project Structure
+
+This is a multi-service project:
+
+```
+slack-ai-assistant/
+├── docker-compose.yml          # Multi-service orchestration
+├── .env                        # Environment variables (create this)
+├── rag-data/                   # Documentation for RAG
+│   └── {project}/{version}/    # Organized by project and version
+├── slack-assistant/            # Go-based Slack bot service
+│   ├── cmd/server/
+│   │   └── main.go            # Main application entry point
+│   ├── pkg/
+│   │   ├── agent/             # Core agent logic
+│   │   ├── database/          # Database interface
+│   │   ├── llm/               # LLM clients (LlamaIndex, AnythingLLM)
+│   │   └── slack-bot/         # Slack API handling
+│   ├── Dockerfile             # Slack bot container
+│   ├── go.mod
+│   └── go.sum
+├── llamaindex-server/          # Python-based LlamaIndex RAG service
+│   ├── app.py                 # Flask server
+│   ├── build_indexes.py       # Pre-build indexes locally
+│   ├── Dockerfile             # LlamaIndex container
+│   ├── requirements.txt
+│   └── pyproject.toml
+└── Makefile                   # Build automation
+```
 
 ## Bot Commands
 
@@ -238,168 +273,291 @@ If incorrect parameters are provided, the bot will respond with helpful usage in
 
 ## Architecture
 
-### Project Structure
-
-```
-slack-ai-assistant/
-├── slack-assistant/        # Go-based Slack bot service
-│   ├── cmd/server/
-│   │   ├── main.go              # Main application entry point
-│   │   └── slack-ai-assistant.db # SQLite database (auto-created)
-│   ├── pkg/
-│   │   ├── agent/
-│   │   │   ├── agent.go         # Core agent logic and command handling
-│   │   │   └── workerpool.go    # Worker pool for concurrent processing
-│   │   ├── database/
-│   │   │   └── database.go      # Database interface and operations
-│   │   ├── llm/
-│   │   │   ├── llm.go          # AnythingLLM client implementation
-│   │   │   └── types.go        # LLM-related type definitions
-│   │   ├── mocks/              # Generated mock files for testing
-│   │   └── slack-bot/
-│   │       └── slack-bot.go    # Slack API and Socket Mode handling
-│   ├── go.mod                  # Go module dependencies
-│   ├── go.sum                  # Dependency checksums
-│   ├── Dockerfile              # Container image for Go service
-│   └── .golangci.yml          # Go linter configuration
-├── Makefile                   # Build automation for all services
-├── README.md                  # Project documentation
-└── .gitignore                # Git ignore patterns
-```
-
 ### Key Components
 
-1. **Agent**: Handles business logic and AI interactions
-2. **Worker Pool**: Manages concurrent event processing
-3. **Database**: Stores thread mappings and conversation state
-4. **LLM Client**: Interfaces with AnythingLLM for AI responses
-5. **Slack Bot**: Manages Slack API communication
+1. **Slack Bot (Go)**
+   - Socket Mode WebSocket handler
+   - Worker pool for concurrent event processing
+   - SQLite database for thread/conversation management
+   - Command parsing and routing
 
-### Event Flow
+2. **LlamaIndex Server (Python)**
+   - Flask REST API
+   - Vector store and retrieval system
+   - Per-thread conversation memory
+   - Document injection and indexing
 
-1. User mentions bot in Slack thread
-2. Event received via Socket Mode
-3. Event queued in worker pool
-4. Worker processes command and parameters
-5. Agent retrieves thread context from database
-6. AI query sent to AnythingLLM
-7. Response posted back to Slack thread
+3. **Data Flow**
+   ```
+   User mentions bot in Slack
+         ↓
+   Socket Mode receives event
+         ↓
+   Worker pool queues event
+         ↓
+   Agent processes command
+         ↓
+   Query sent to LlamaIndex server
+         ↓
+   RAG retrieval + LLM generation
+         ↓
+   Response posted to Slack thread
+   ```
 
-## Database
+### Database
 
-The bot automatically creates and manages a SQLite database (`slack-ai-assistant.db`) for:
-
-- Thread mapping between Slack and AnythingLLM
+The Slack bot uses SQLite (`slack-ai-assistant.db`) for:
+- Thread mapping between Slack and LlamaIndex
 - Conversation state management
-- Database auto-migration on startup
+- Auto-migration on startup
+
+### Security Best Practices
+
+✅ **Secrets Management**:
+- GEMINI_API_KEY is **NEVER** in the Docker image
+- All secrets passed at runtime via environment variables
+- Safe to push images to public registries
+
+✅ **Volume Persistence**:
+- Indexes, state, and injected docs persist across restarts
+- Conversation memory maintained per thread
+- Easy backup via Docker volumes
+
+## Adding New Documentation
+
+To add documentation for RAG:
+
+### 1. Organize by Project and Version
+
+```bash
+# Create directory structure
+mkdir -p rag-data/myproject/1.0
+
+# Add your files (markdown, text, PDF)
+cp /path/to/docs/*.md rag-data/myproject/1.0/
+```
+
+### 2. Rebuild and Restart
+
+```bash
+# Rebuild LlamaIndex server to include new docs
+docker-compose build llamaindex-server
+
+# Restart services
+make docker-compose-up
+
+# First startup with new docs will rebuild indexes (takes a few minutes)
+# Watch logs to monitor progress
+docker-compose logs -f llamaindex-server
+```
+
+### 3. Use in Commands
+
+```
+@bot-name answer myproject 1.0
+@bot-name answer-all myproject 1.0
+@bot-name inject myproject 1.0
+```
 
 ## Dependencies
 
-### Go Dependencies
+### Go Dependencies (Slack Bot)
 - `github.com/spf13/cobra` - CLI framework
 - `github.com/slack-go/slack` - Official Slack Go SDK
-- `github.com/SchSeba/anythingllm-go-sdk` - AnythingLLM Go SDK
-- `github.com/google/uuid` - UUID generation for LlamaIndex threads
-- SQLite database driver and ORM functionality
+- `github.com/google/uuid` - UUID generation
+- SQLite database driver
 
-### Python Dependencies (LlamaIndex server)
+### Python Dependencies (LlamaIndex Server)
 - `Flask` - Web framework
-- `llama-index-core` - RAG framework core
-- `llama-index-llms-google-genai` - Google GenAI LLM (latest unified SDK)
-- `llama-index-embeddings-google-genai` - Google GenAI embeddings (latest unified SDK)
-- `google-generativeai` - Google AI SDK (installed as dependency)
+- `llama-index-core` - RAG framework
+- `llama-index-llms-google-genai` - Google Gemini LLM
+- `llama-index-embeddings-google-genai` - Google embeddings
+- `google-generativeai` - Google AI SDK
 
 ## Troubleshooting
 
-### Common Issues
+### Docker Compose Issues
 
-1. **Connection Failed**: 
-   - Verify bot token and app token are correct
-   - Ensure Socket Mode is enabled in your Slack app
-   - Check that your app has the required OAuth scopes
+**Services won't start:**
+```bash
+# Check logs
+make docker-compose-logs
 
-2. **AI Responses Not Working**:
-   - **AnythingLLM**: Verify `ANYTHINGLLM_HOST` and `ANYTHINGLLM_API_KEY` environment variables; check AnythingLLM instance is accessible; ensure workspaces exist
-   - **LlamaIndex**: Verify `GEMINI_API_KEY` is set; ensure LlamaIndex server is running on `LLAMAINDEX_HOST`; check that base indexes exist in storage directory; verify project/version docs exist in `rag-data/`
+# Verify .env file exists with required variables
+cat .env
 
-3. **Database Errors**:
-   - Check write permissions in the application directory
-   - Ensure SQLite dependencies are properly installed
+# Check if ports are available
+lsof -i :5000  # LlamaIndex port
+```
 
-4. **Worker Pool Issues**:
-   - Adjust worker count with `--workers` flag based on load
-   - Monitor for memory usage with high worker counts
+**Slack bot can't connect:**
+```bash
+# Verify tokens in .env
+docker-compose logs slack-bot
 
-### Debug Mode
+# Check Socket Mode is enabled in Slack app
+# Verify bot token starts with 'xoxb-'
+# Verify app token starts with 'xapp-'
+```
 
-Run with `--debug` flag to see detailed logs:
-- WebSocket connection status
-- All incoming events and processing details
-- AI API call information
-- Database operations
-- Worker pool activity
+**LlamaIndex not responding:**
+```bash
+# Check server logs
+docker-compose logs llamaindex-server
+
+# Verify GEMINI_API_KEY is valid
+# Check if indexes are building (first startup takes time)
+# Test server directly:
+curl http://localhost:5000/health
+```
+
+**No AI responses or "I don't know":**
+```bash
+# Verify docs exist in rag-data/{project}/{version}/
+ls -la rag-data/
+
+# Rebuild indexes
+docker-compose build llamaindex-server
+make docker-compose-up
+
+# Check retrieval parameters (may be too strict)
+# Lower thresholds in .env:
+# MIN_HITS=1
+# SIMILARITY_CUTOFF=0.3
+# CONFIDENCE_THRESHOLD=0.05
+```
+
+**Database errors:**
+```bash
+# Check volume permissions
+make docker-compose-down
+sudo chown -R $USER:$USER ./slack-bot-data
+make docker-compose-up
+```
 
 ### Performance Tuning
 
-- **Worker Count**: Adjust `--workers` based on expected load (default: 10)
-- **Queue Size**: Worker pool uses a queue size of 200 events
-- **Database**: SQLite provides good performance for typical Slack bot usage
+**LlamaIndex Server:**
+- `TOP_K`: More documents = better context but slower
+- `TEMPERATURE`: 0.0 for deterministic, 0.7 for creative
+- `MIN_HITS`: Lower = more permissive answering
+
+**Slack Bot:**
+- Default worker pool: 10 concurrent events
+- To adjust, modify Dockerfile CMD or override in docker-compose.yml
+
+### Debug Mode
+
+View detailed logs:
+```bash
+# All logs
+make docker-compose-logs
+
+# Just Slack bot with debug output
+docker-compose logs -f slack-bot
+
+# Just LlamaIndex server
+docker-compose logs -f llamaindex-server
+```
+
+## Alternative Deployment Methods
+
+### Using AnythingLLM Instead of LlamaIndex
+
+If you prefer AnythingLLM over LlamaIndex:
+
+1. **Set up AnythingLLM instance** (separate installation)
+2. **Get API credentials** from your AnythingLLM dashboard
+3. **Modify docker-compose.yml** to remove llamaindex-server
+4. **Update slack-bot environment**:
+   ```yaml
+   slack-bot:
+     environment:
+       - AI_BACKEND=anythingllm
+       - ANYTHINGLLM_HOST=your-anythingllm-host
+       - ANYTHINGLLM_API_KEY=your-api-key
+   ```
+5. **Rebuild and start**: `docker-compose build && make docker-compose-up`
+
+### Local Development (without Docker)
+
+**LlamaIndex Server:**
+```bash
+cd llamaindex-server
+
+# Install uv package manager
+./setup.sh
+
+# Build indexes from rag-data
+uv run build_indexes.py --data ../rag-data --out ./local-storage
+
+# Run server
+GEMINI_API_KEY=your-key \
+STORAGE_ROOT=./local-storage \
+DELTA_ROOT=./local-delta \
+INJECT_ROOT=./local-injected \
+STATE_ROOT=./local-state \
+uv run app.py
+```
+
+**Slack Bot:**
+```bash
+cd slack-assistant
+
+# Install dependencies
+go mod tidy
+
+# Build
+go build -o slack-ai-assistant ./cmd/server
+
+# Run
+AI_BACKEND=llamaindex \
+LLAMAINDEX_HOST=http://localhost:5000 \
+./slack-ai-assistant \
+  --bot-token "xoxb-your-token" \
+  --app-token "xapp-your-token" \
+  --workers 10 \
+  --debug
+```
 
 ## Development
 
-### Adding New Commands
+### Adding New Bot Commands
 
-1. Add command parsing logic in `agent.go`
-2. Implement command handler function
-3. Update this README with command documentation
+1. **Edit** `slack-assistant/pkg/agent/agent.go`
+2. **Add command parsing** in `handleAppMention()`
+3. **Implement handler function** 
+4. **Update this README** with command documentation
 
 ### Extending AI Features
 
-1. Add new methods to the LLM interface in `llm/types.go`
-2. Implement in both `llm/llm.go` (AnythingLLM) and `llm/llamaindex.go` (LlamaIndex)
-3. Update agent to use new LLM capabilities
+1. **Define interface** in `slack-assistant/pkg/llm/types.go`
+2. **Implement for LlamaIndex** in `llm/llamaindex.go`
+3. **Implement for AnythingLLM** in `llm/llm.go`
+4. **Call from agent** in `agent.go`
 
-### Adding Knowledge to LlamaIndex
+### LlamaIndex Server Details
 
-1. Create directory structure: `rag-data/{project}/{version}/`
-2. Add markdown, text, or other documents to the directory
-3. **For local development**: Rebuild indexes:
-   ```bash
-   cd llamaindex-server
-   uv run build_indexes.py --data ../rag-data --out ./local-storage
-   ```
-4. **For Docker**: Rebuild the image and restart:
-   ```bash
-   docker-compose down
-   docker-compose build llamaindex-server  # Rebuilds with new docs
-   docker-compose up
-   ```
-   The indexes will be built automatically on first startup (no API key in build!)
-5. **For production**: Consider pre-building indexes locally and mounting as volume for faster startup
+**Retrieval Strategy:**
+- Vector similarity search with configurable `TOP_K`
+- Similarity cutoff filtering
+- Minimum hits requirement for answering
 
-### LlamaIndex Architecture
+**Abstention Logic** - "I don't know" responses when:
+- Fewer than `MIN_HITS` documents retrieved
+- Similarity scores below `SIMILARITY_CUTOFF`
+- Confidence below `CONFIDENCE_THRESHOLD`
 
-**Security**: 
-- ✅ **GEMINI_API_KEY is NEVER in the Docker image** - Only passed at runtime as environment variable
-- ✅ Images can be safely pushed to public registries
-- ✅ No secrets in build args or layers
+**Data Persistence:**
+- **Base indexes**: Built from `rag-data/` on first startup
+- **Delta indexes**: Runtime injections (JSONL + vector index)
+- **Thread memory**: JSON conversation history per thread
+- **Volumes**: All data persists across restarts
 
-**Abstention Logic**: The server uses strict "I don't know" behavior when:
-- Fewer than `MIN_HITS` relevant documents are retrieved
-- Document similarity scores are below `SIMILARITY_CUTOFF`
-- Aggregate confidence is below `CONFIDENCE_THRESHOLD`
-
-**Data Persistence**:
-- Base indexes: Built on first container startup from `rag-data` directory, or prebuilt locally via `build_indexes.py`
-- Delta indexes: Runtime injections stored as JSONL and indexed incrementally
-- Thread memory: Per-thread conversation history in JSON files
-- All persisted data survives server restarts
-
-### Custom Event Handling
-
-1. Extend event types in the Socket Mode handler
-2. Add new worker item types in `workerpool.go`
-3. Implement processing logic in the agent
+**Security:**
+- ✅ GEMINI_API_KEY never in Docker image
+- ✅ Runtime-only secrets via environment
+- ✅ Safe for public registries
 
 ## Contributing
 
