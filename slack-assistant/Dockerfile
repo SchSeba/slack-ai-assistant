@@ -1,4 +1,5 @@
 # Multi-stage Dockerfile for Slack AI Assistant
+# Supports multi-architecture builds: linux/amd64, linux/arm64
 
 # Build stage
 ARG GO_VERSION=1.24
@@ -8,6 +9,8 @@ FROM golang:${GO_VERSION}-alpine AS builder
 ARG VERSION=dev
 ARG COMMIT_HASH=unknown
 ARG BUILD_TIME=unknown
+ARG TARGETARCH
+ARG TARGETOS
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates gcc musl-dev sqlite-dev
@@ -25,8 +28,9 @@ RUN go mod download
 COPY . .
 
 # Build the application with static linking
+# Use TARGETOS and TARGETARCH (automatically set by Docker/Podman for multi-platform builds)
 RUN CGO_ENABLED=1 \
-    GOOS=linux \
+    GOARCH=${TARGETARCH:-amd64} \
     go build \
     -a \
     -installsuffix cgo \
@@ -61,7 +65,10 @@ LABEL description="A Slack AI Assistant Bot that integrates with AnythingLLM"
 #   CMD ["/slack-ai-assistant", "health"] || exit 1
 
 # Run as non-root user for security
-USER 65534:65534
+# NOTE: Commented out for Podman Desktop on macOS compatibility
+# Podman Desktop on macOS uses a VM and has UID mapping issues with bind mounts
+# For production deployments, uncomment this line and use named volumes instead
+# USER 65534:65534
 
 # Entry point
 ENTRYPOINT ["/slack-ai-assistant"]

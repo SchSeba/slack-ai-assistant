@@ -119,54 +119,80 @@ func (a *Agent) handleAppMentionEvent(event *slackevents.AppMentionEvent) error 
 }
 
 func (a *Agent) AnswerQuestion(channel, threadTS, project, version string, fullThread bool) error {
-	err := a.slackBot.PostMessage(channel, threadTS, "Searching for answer...")
-	if err != nil {
+	if err := a.slackBot.PostMessage(channel, threadTS, "Searching for answer..."); err != nil {
 		return fmt.Errorf("failed to post initial message: %w", err)
 	}
-	var messages string
-	if fullThread {
-		// Get all thread messages
-		messages, err = a.getThreadMessages(channel, threadTS)
-		if err != nil {
-			fmt.Printf("❌ Failed to get thread messages: %v\n", err)
-			return fmt.Errorf("failed to get thread messages: %w", err)
-		}
-	} else {
-		messages, err = a.getLastMessageInThread(channel, threadTS)
-		if err != nil {
-			fmt.Printf("❌ Failed to get last message in thread: %v\n", err)
-			return fmt.Errorf("failed to get last message in thread: %w", err)
-		}
+
+	messages, err := a.getMessages(channel, threadTS, fullThread)
+	if err != nil {
+		return err
 	}
 
-	// Check if a slug in anythingllm already exist
+	slug, err := a.getOrCreateSlug(threadTS, project, version)
+	if err != nil {
+		return err
+	}
+
+	return a.generateAndPostResponse(channel, threadTS, project, version, slug, messages)
+}
+
+// getMessages retrieves messages from the thread based on fullThread flag
+func (a *Agent) getMessages(channel, threadTS string, fullThread bool) (string, error) {
+	if fullThread {
+		messages, err := a.getThreadMessages(channel, threadTS)
+		if err != nil {
+			fmt.Printf("❌ Failed to get thread messages: %v\n", err)
+			return "", fmt.Errorf("failed to get thread messages: %w", err)
+		}
+		return messages, nil
+	}
+
+	messages, err := a.getLastMessageInThread(channel, threadTS)
+	if err != nil {
+		fmt.Printf("❌ Failed to get last message in thread: %v\n", err)
+		return "", fmt.Errorf("failed to get last message in thread: %w", err)
+	}
+	return messages, nil
+}
+
+// getOrCreateSlug retrieves an existing slug or creates a new one
+func (a *Agent) getOrCreateSlug(threadTS, project, version string) (string, error) {
 	slug, exist, err := a.db.GetSlugForThread(threadTS)
 	if err != nil {
 		fmt.Printf("❌ Failed to get slug for thread from database: %v\n", err)
-		return fmt.Errorf("failed to get slug for thread from database: %w", err)
+		return "", fmt.Errorf("failed to get slug for thread from database: %w", err)
 	}
 
-	if !exist {
-		slug, err = a.llmClient.CreateThread(project, version)
-		if err != nil {
-			fmt.Printf("❌ Failed to create thread: %v\n", err)
-			return fmt.Errorf("failed to create thread: %w", err)
-		}
-		err = a.db.CreateSlackThreadWithSlug(threadTS, slug)
-		if err != nil {
-			fmt.Printf("❌ Failed to create slack thread in database: %v\n", err)
-			return fmt.Errorf("failed to create slack thread in database: %w", err)
-		}
+	if exist {
+		return slug, nil
 	}
 
+	slug, err = a.llmClient.CreateThread(project, version)
+	if err != nil {
+		fmt.Printf("❌ Failed to create thread: %v\n", err)
+		return "", fmt.Errorf("failed to create thread: %w", err)
+	}
+
+	if err = a.db.CreateSlackThreadWithSlug(threadTS, slug); err != nil {
+		fmt.Printf("❌ Failed to create slack thread in database: %v\n", err)
+		return "", fmt.Errorf("failed to create slack thread in database: %w", err)
+	}
+
+	return slug, nil
+}
+
+// generateAndPostResponse generates a response from LLM and posts it to Slack
+func (a *Agent) generateAndPostResponse(channel, threadTS, project, version, slug, messages string) error {
 	response, err := a.llmClient.SendMessageToChat(project, version, slug, messages)
 	if err != nil {
 		fmt.Printf("❌ Failed to generate response: %v\n", err)
+		if postErr := a.slackBot.PostMessage(channel, threadTS, fmt.Sprintf("❌ Error: %v", err)); postErr != nil {
+			fmt.Printf("❌ Failed to post error message: %v\n", postErr)
+		}
 		return fmt.Errorf("failed to generate response: %w", err)
 	}
 
-	err = a.slackBot.PostMessage(channel, threadTS, fmt.Sprintf("Here is the information I was able to find\n%s", response))
-	if err != nil {
+	if err = a.slackBot.PostMessage(channel, threadTS, fmt.Sprintf("Here is the information I was able to find\n%s", response)); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
 	return nil
@@ -192,6 +218,11 @@ func (a *Agent) Elaborate(channel, threadTS string) error {
 	response, err := a.llmClient.Elaborate(slug, lastMessage)
 	if err != nil {
 		fmt.Printf("❌ Failed to generate response: %v\n", err)
+		// Send error message to user
+		postErr := a.slackBot.PostMessage(channel, threadTS, fmt.Sprintf("❌ Error: %v", err))
+		if postErr != nil {
+			fmt.Printf("❌ Failed to post error message: %v\n", postErr)
+		}
 		return fmt.Errorf("failed to generate response: %w", err)
 	}
 	err = a.slackBot.PostMessage(channel, threadTS, response)
@@ -212,6 +243,11 @@ func (a *Agent) Inject(channel, threadTS, project, version string) error {
 	err = a.llmClient.Inject(project, version, messages)
 	if err != nil {
 		fmt.Printf("❌ Failed to inject messages: %v\n", err)
+		// Send error message to user
+		postErr := a.slackBot.PostMessage(channel, threadTS, fmt.Sprintf("❌ Error: %v", err))
+		if postErr != nil {
+			fmt.Printf("❌ Failed to post error message: %v\n", postErr)
+		}
 		return fmt.Errorf("failed to inject messages: %w", err)
 	}
 

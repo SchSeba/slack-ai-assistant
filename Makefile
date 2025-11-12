@@ -24,8 +24,21 @@ BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 # Go build flags
 LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT_HASH) -X main.buildTime=$(BUILD_TIME)"
 
-# Container build platform
-PLATFORM ?= linux/amd64
+# Container build platform (supports: linux/amd64, linux/arm64, or both with linux/amd64,linux/arm64)
+PLATFORM ?= linux/amd64,linux/arm64
+
+# Extract GOARCH from PLATFORM for single-platform builds
+# For multi-platform builds, this is handled by the container runtime
+GOARCH_MAP_amd64 := amd64
+GOARCH_MAP_arm64 := arm64
+DETECTED_ARCH := $(shell uname -m)
+ifeq ($(DETECTED_ARCH),arm64)
+    GOARCH ?= arm64
+else ifeq ($(DETECTED_ARCH),aarch64)
+    GOARCH ?= arm64
+else
+    GOARCH ?= amd64
+endif
 
 .PHONY: help
 help: ## Display this help message
@@ -162,10 +175,11 @@ install-tools-go: ## Install required Go development tools
 container-build: container-build-go ## Build all container images
 
 .PHONY: container-build-go
-container-build-go: ## Build Go container image
-	@echo "Building container image $(CONTAINER_REPO):$(VERSION) using $(CONTAINER_RUNTIME)..."
+container-build-go: ## Build Go container image (supports multi-arch: linux/amd64,linux/arm64)
+	@echo "Building container image $(CONTAINER_REPO):$(VERSION) for platform(s): $(PLATFORM) using $(CONTAINER_RUNTIME)..."
 	$(CONTAINER_RUNTIME) build \
 		--platform $(PLATFORM) \
+		--build-arg GO_OS=$(GO_OS) \
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT_HASH=$(COMMIT_HASH) \
@@ -237,6 +251,8 @@ version: ## Show version information
 	@echo "Build Time: $(BUILD_TIME)"
 	@echo "Container Runtime: $(CONTAINER_RUNTIME)"
 	@echo "Container Repo: $(CONTAINER_REPO)"
+	@echo "Platform(s): $(PLATFORM)"
+	@echo "Detected GOARCH: $(GOARCH)"
 	@echo "Golangci-lint Version: $(GOLANGCI_LINT_VERSION)"
 
 # LlamaIndex Server targets
@@ -270,10 +286,17 @@ llamaindex-test: ## Run LlamaIndex server tests
 	cd llamaindex-server && pytest test_server.py -v
 
 .PHONY: llamaindex-container-build
-llamaindex-container-build: ## Build LlamaIndex server container
-	@echo "Building LlamaIndex container..."
+llamaindex-container-build: ## Build LlamaIndex server container (supports multi-arch: linux/amd64,linux/arm64)
+	@echo "Building LlamaIndex container for platform(s): $(PLATFORM) using $(CONTAINER_RUNTIME)..."
 	@echo "Note: GEMINI_API_KEY is passed at runtime, not build time (secure!)"
 	$(CONTAINER_RUNTIME) build \
+		--platform $(PLATFORM) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT_HASH=$(COMMIT_HASH) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
+		--label app=slack-ai-assistant-llamaindex \
+		--label version=$(VERSION) \
+		--label commit=$(COMMIT_HASH) \
 		-t $(CONTAINER_REPO)-llamaindex:$(VERSION) \
 		-t $(CONTAINER_REPO)-llamaindex:latest \
 		-f llamaindex-server/Dockerfile \
@@ -288,26 +311,15 @@ llamaindex-setup: ## Set up Python environment for LlamaIndex
 	@echo "Then install dependencies:"
 	@echo "  pip install -r requirements.txt"
 
-.PHONY: docker-compose-up
-docker-compose-up: ## Start all services with docker-compose
-	@echo "Starting services with docker-compose..."
-	@if [ -z "$$GEMINI_API_KEY" ]; then \
-		echo "Error: GEMINI_API_KEY environment variable is required"; \
-		exit 1; \
-	fi
-	docker-compose up -d
-
-.PHONY: docker-compose-down
-docker-compose-down: ## Stop all services with docker-compose
-	@echo "Stopping services with docker-compose..."
-	docker-compose down
-
-.PHONY: docker-compose-logs
-docker-compose-logs: ## Show logs from docker-compose services
-	docker-compose logs -f
+.PHONY: setup-dirs
+setup-dirs: ## Create necessary directories with proper permissions
+	@echo "Creating necessary directories with 777 permissions..."
+	@mkdir -p local-delta local-injected local-state slack-bot-data
+	@chmod 777 local-delta local-injected local-state slack-bot-data
+	@echo "Directories created and permissions set successfully!"
 
 .PHONY: podman-compose-up
-podman-compose-up: ## Start all services with podman compose
+podman-compose-up: setup-dirs ## Start all services with podman compose
 	@echo "Starting services with podman compose..."
 	@if [ -z "$$GEMINI_API_KEY" ]; then \
 		echo "Error: GEMINI_API_KEY environment variable is required"; \

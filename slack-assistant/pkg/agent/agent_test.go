@@ -128,6 +128,22 @@ var _ = Describe("Agent", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("failed to create thread"))
 			})
+
+			It("should return error when SendMessageToChat fails", func() {
+				mockSlackBot.EXPECT().PostMessage(channel, threadTS, "Searching for answer...").Return(nil)
+				mockSlackBot.EXPECT().GetConversationReplies(gomock.Any()).Return([]slack.Message{
+					{Msg: slack.Msg{Text: "User message 1"}},
+					{Msg: slack.Msg{Text: "Bot response"}},
+					{Msg: slack.Msg{Text: "User question"}},
+				}, nil)
+				mockDB.EXPECT().GetSlugForThread(threadTS).Return("existing-slug", true, nil)
+				mockLLM.EXPECT().SendMessageToChat(project, version, "existing-slug", gomock.Any()).Return("", errors.New("no index found"))
+				mockSlackBot.EXPECT().PostMessage(channel, threadTS, "❌ Error: no index found").Return(nil)
+
+				err := testAgent.AnswerQuestion(channel, threadTS, project, version, false)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to generate response"))
+			})
 		})
 	})
 
@@ -165,6 +181,22 @@ var _ = Describe("Agent", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to create thread"))
 		})
+
+		It("should handle LLM elaborate failure", func() {
+			mockSlackBot.EXPECT().PostMessage(channel, threadTS, "Elaborating...").Return(nil)
+			mockSlackBot.EXPECT().GetConversationReplies(gomock.Any()).Return([]slack.Message{
+				{Msg: slack.Msg{Text: "User message 1"}},
+				{Msg: slack.Msg{Text: "Bot response"}},
+				{Msg: slack.Msg{Text: "User question"}},
+			}, nil)
+			mockLLM.EXPECT().CreateThread("elaborate", "").Return("elaborate-thread-slug", nil)
+			mockLLM.EXPECT().Elaborate("elaborate-thread-slug", gomock.Any()).Return("", errors.New("elaboration failed"))
+			mockSlackBot.EXPECT().PostMessage(channel, threadTS, "❌ Error: elaboration failed").Return(nil)
+
+			err := testAgent.Elaborate(channel, threadTS)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to generate response"))
+		})
 	})
 
 	Describe("Inject", func() {
@@ -195,6 +227,7 @@ var _ = Describe("Agent", func() {
 				{Msg: slack.Msg{Text: "User question", User: "U123"}},
 			}, nil)
 			mockLLM.EXPECT().Inject(project, version, gomock.Any()).Return(errors.New("injection failed"))
+			mockSlackBot.EXPECT().PostMessage(channel, threadTS, "❌ Error: injection failed").Return(nil)
 
 			err := testAgent.Inject(channel, threadTS, project, version)
 			Expect(err).To(HaveOccurred())

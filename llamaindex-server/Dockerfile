@@ -1,8 +1,14 @@
 # Dockerfile for LlamaIndex server
+# Supports multi-architecture builds: linux/amd64, linux/arm64
 # NOTE: Indexes should be pre-built locally and copied in, OR built on first container startup
 # DO NOT pass GEMINI_API_KEY as a build arg - it should only be provided at runtime!
 
 FROM python:3.11-slim
+
+# Build arguments for versioning
+ARG VERSION=dev
+ARG COMMIT_HASH=unknown
+ARG BUILD_TIME=unknown
 
 WORKDIR /app
 
@@ -33,6 +39,11 @@ ENV STORAGE_ROOT=/app/storage \
 
 # IMPORTANT: GEMINI_API_KEY must be provided at runtime via -e flag
 # Example: docker run -e GEMINI_API_KEY=your-key ...
+
+# Labels
+LABEL maintainer="SchSeba"
+LABEL app="slack-ai-assistant-llamaindex"
+LABEL description="LlamaIndex RAG server for Slack AI Assistant"
 
 # Run Flask app
 CMD ["python", "app.py"]
